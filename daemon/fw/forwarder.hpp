@@ -30,6 +30,7 @@
 #include "forwarder-counters.hpp"
 #include "unsolicited-data-policy.hpp"
 #include "face/face-endpoint.hpp"
+#include "face/face-system-base.hpp"
 #include "table/fib.hpp"
 #include "table/pit.hpp"
 #include "table/cs.hpp"
@@ -52,7 +53,7 @@ class Forwarder
 {
 public:
   explicit
-  Forwarder(FaceTable& faceTable);
+  Forwarder(FaceTable& faceTable, FaceSystemBase& faceSystem);
 
   VIRTUAL_WITH_TESTS
   ~Forwarder();
@@ -262,6 +263,7 @@ private:
   ForwarderCounters m_counters;
 
   FaceTable& m_faceTable;
+  FaceSystemBase& m_faceSystem;
   unique_ptr<fw::UnsolicitedDataPolicy> m_unsolicitedDataPolicy;
 
   NameTree           m_nameTree;

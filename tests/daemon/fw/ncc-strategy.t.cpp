@@ -47,7 +47,8 @@ BOOST_AUTO_TEST_CASE(FavorRespondingUpstream)
 
   LimitedIo limitedIo(this);
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   NccStrategyTester& strategy = choose<NccStrategyTester>(forwarder);
   strategy.afterAction.connect(bind(&LimitedIo::afterOp, &limitedIo));
 
@@ -108,7 +109,8 @@ BOOST_AUTO_TEST_CASE(FavorRespondingUpstream)
 BOOST_AUTO_TEST_CASE(Bug1853)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   NccStrategyTester& strategy = choose<NccStrategyTester>(forwarder);
 
   shared_ptr<DummyFace> face1 = make_shared<DummyFace>();
@@ -159,7 +161,8 @@ BOOST_AUTO_TEST_CASE(Bug1961)
 {
   LimitedIo limitedIo(this);
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   NccStrategyTester& strategy = choose<NccStrategyTester>(forwarder);
   strategy.afterAction.connect(bind(&LimitedIo::afterOp, &limitedIo));
 
@@ -215,7 +218,8 @@ BOOST_AUTO_TEST_CASE(Bug1971)
 {
   LimitedIo limitedIo(this);
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   NccStrategyTester& strategy = choose<NccStrategyTester>(forwarder);
   strategy.afterAction.connect(bind(&LimitedIo::afterOp, &limitedIo));
 
@@ -260,7 +264,8 @@ BOOST_AUTO_TEST_CASE(Bug1971)
 BOOST_AUTO_TEST_CASE(Bug1998)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   NccStrategyTester& strategy = choose<NccStrategyTester>(forwarder);
 
   shared_ptr<DummyFace> face1 = make_shared<DummyFace>();

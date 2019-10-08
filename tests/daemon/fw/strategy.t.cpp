@@ -28,6 +28,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 #include "dummy-strategy.hpp"
 
 #include <boost/range/adaptor/filtered.hpp>
@@ -84,7 +85,8 @@ public:
 BOOST_AUTO_TEST_CASE(FaceTableAccess)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   FaceTableAccessTestStrategy strategy(forwarder);
 
   auto face1 = make_shared<DummyFace>();

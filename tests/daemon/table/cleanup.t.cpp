@@ -29,6 +29,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 namespace nfd {
 namespace tests {
@@ -75,7 +76,8 @@ BOOST_AUTO_TEST_CASE(Basic)
 BOOST_AUTO_TEST_CASE(RemoveFibNexthops)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   NameTree& nameTree = forwarder.getNameTree();
   Fib& fib = forwarder.getFib();
 
@@ -132,7 +134,8 @@ BOOST_AUTO_TEST_CASE(RemoveFibNexthops)
 BOOST_AUTO_TEST_CASE(DeletePitInOutRecords)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   Pit& pit = forwarder.getPit();
 
   auto face1 = make_shared<DummyFace>();

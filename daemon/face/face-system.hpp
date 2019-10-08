@@ -27,6 +27,7 @@
 #define NFD_DAEMON_FACE_FACE_SYSTEM_HPP
 
 #include "face-endpoint.hpp"
+#include "face-system-base.hpp"
 #include "network-predicate.hpp"
 #include "common/config-file.hpp"
 
@@ -49,7 +50,7 @@ struct ProtocolFactoryCtorParams;
  *  NFD's face system is organized as a FaceSystem-ProtocolFactory-Channel-Face hierarchy.
  *  FaceSystem class is the entry point of NFD's face system and owns ProtocolFactory objects.
  */
-class FaceSystem : noncopyable
+class FaceSystem : public FaceSystemBase, noncopyable
 {
 public:
   using UnicastFaceCreatedCallback = std::function<void(const Face&)>;

@@ -32,6 +32,7 @@
 #include "tests/check-typeid.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/fw/dummy-strategy.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 namespace nfd {
 namespace tests {
@@ -40,7 +41,8 @@ class TablesConfigSectionFixture : public GlobalIoFixture
 {
 protected:
   TablesConfigSectionFixture()
-    : forwarder(faceTable)
+    : faceSystem(faceTable)
+    , forwarder(faceTable, faceSystem)
     , cs(forwarder.getCs())
     , strategyChoice(forwarder.getStrategyChoice())
     , networkRegionTable(forwarder.getNetworkRegionTable())
@@ -64,6 +66,7 @@ protected:
 
 protected:
   FaceTable faceTable;
+  DummyFaceSystem faceSystem;
   Forwarder forwarder;
   Cs& cs;
   StrategyChoice& strategyChoice;

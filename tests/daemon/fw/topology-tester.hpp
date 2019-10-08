@@ -35,6 +35,7 @@
 #include "fw/strategy.hpp"
 #include "choose-strategy.hpp"
 #include "tests/test-common.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 #include <ndn-cxx/face.hpp>
 
@@ -357,7 +358,8 @@ private:
   public:
     std::string label;
     FaceTable faceTable;
-    Forwarder forwarder{faceTable};
+    DummyFaceSystem dummyFaceSystem{faceTable};
+    Forwarder forwarder{faceTable, dummyFaceSystem};
   };
 
   std::vector<unique_ptr<TopologyForwarder>> m_forwarders;

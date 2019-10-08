@@ -82,7 +82,7 @@ Nfd::initialize()
   m_faceTable->addReserved(face::makeNullFace(FaceUri("contentstore://")), face::FACEID_CONTENT_STORE);
 
   m_faceSystem = make_unique<face::FaceSystem>(*m_faceTable, m_netmon);
-  m_forwarder = make_unique<Forwarder>(*m_faceTable);
+  m_forwarder = make_unique<Forwarder>(*m_faceTable, *m_faceSystem);
 
   initializeManagement();
 

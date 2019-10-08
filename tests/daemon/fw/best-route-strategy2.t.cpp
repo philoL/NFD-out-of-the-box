@@ -28,6 +28,7 @@
 
 #include "tests/test-common.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 #include "strategy-tester.hpp"
 
 namespace nfd {
@@ -58,7 +59,8 @@ protected:
 
 protected:
   FaceTable faceTable;
-  Forwarder forwarder{faceTable};
+  DummyFaceSystem dummyFaceSystem{faceTable};
+  Forwarder forwarder{faceTable, dummyFaceSystem};
   BestRouteStrategy2Tester strategy{forwarder};
   Fib& fib{forwarder.getFib()};
   Pit& pit{forwarder.getPit()};

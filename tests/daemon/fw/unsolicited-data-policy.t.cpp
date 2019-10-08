@@ -29,6 +29,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 #include <boost/logic/tribool.hpp>
 #include <boost/mpl/vector.hpp>
@@ -68,7 +69,8 @@ protected:
 
 protected:
   FaceTable faceTable;
-  Forwarder forwarder{faceTable};
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   Cs& cs{forwarder.getCs()};
 };
 

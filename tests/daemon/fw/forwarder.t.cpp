@@ -29,6 +29,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 #include "choose-strategy.hpp"
 #include "dummy-strategy.hpp"
 
@@ -51,7 +52,8 @@ protected:
 
 protected:
   FaceTable faceTable;
-  Forwarder forwarder{faceTable};
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 };
 
 BOOST_AUTO_TEST_SUITE(Fw)
@@ -197,7 +199,8 @@ public:
 BOOST_FIXTURE_TEST_CASE(ScopeLocalhostIncoming, GlobalIoTimeFixture)
 {
   FaceTable faceTable;
-  ScopeLocalhostIncomingTestForwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  ScopeLocalhostIncomingTestForwarder forwarder(faceTable, faceSystem);
 
   auto face1 = make_shared<DummyFace>("dummy://", "dummy://", ndn::nfd::FACE_SCOPE_LOCAL);
   auto face2 = make_shared<DummyFace>();

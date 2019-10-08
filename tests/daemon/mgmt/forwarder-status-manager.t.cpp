@@ -25,6 +25,7 @@
 
 #include "mgmt/forwarder-status-manager.hpp"
 #include "core/version.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 #include "manager-common-fixture.hpp"
 
@@ -35,7 +36,8 @@ class ForwarderStatusManagerFixture : public ManagerCommonFixture
 {
 protected:
   ForwarderStatusManagerFixture()
-    : m_forwarder(m_faceTable)
+    : m_faceSystm(m_faceTable)
+    , m_forwarder(m_faceTable, m_faceSystm)
     , m_manager(m_forwarder, m_dispatcher)
     , m_startTime(time::system_clock::now())
   {
@@ -44,6 +46,7 @@ protected:
 
 protected:
   FaceTable m_faceTable;
+  DummyFaceSystem m_faceSystm;
   Forwarder m_forwarder;
   ForwarderStatusManager m_manager;
   time::system_clock::TimePoint m_startTime;

@@ -30,6 +30,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 namespace nfd {
 namespace fw {
@@ -43,7 +44,8 @@ BOOST_FIXTURE_TEST_SUITE(TestRetxSuppression, GlobalIoTimeFixture)
 BOOST_AUTO_TEST_CASE(Fixed)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   Pit& pit = forwarder.getPit();
   static const time::milliseconds MIN_RETX_INTERVAL(200);
   RetxSuppressionFixed rs(MIN_RETX_INTERVAL);
@@ -93,7 +95,8 @@ BOOST_AUTO_TEST_CASE(Fixed)
 BOOST_AUTO_TEST_CASE(Exponential)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   Pit& pit = forwarder.getPit();
   RetxSuppressionExponential rs(10_ms, 3.0, 100_ms);
 
@@ -162,7 +165,8 @@ BOOST_AUTO_TEST_CASE(Exponential)
 BOOST_AUTO_TEST_CASE(ExponentialPerUpstream)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   Pit& pit = forwarder.getPit();
   RetxSuppressionExponential rs(10_ms, 3.0, 100_ms);
 

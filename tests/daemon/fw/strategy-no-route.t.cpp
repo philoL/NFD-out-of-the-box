@@ -37,6 +37,7 @@
 
 #include "tests/test-common.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 #include "choose-strategy.hpp"
 #include "strategy-tester.hpp"
 
@@ -53,7 +54,8 @@ class StrategyNoRouteFixture : public GlobalIoTimeFixture
 public:
   StrategyNoRouteFixture()
     : limitedIo(this)
-    , forwarder(faceTable)
+    , faceSystem(faceTable)
+    , forwarder(faceTable, faceSystem)
     , strategy(choose<StrategyTester<S>>(forwarder))
     , fib(forwarder.getFib())
     , pit(forwarder.getPit())
@@ -68,6 +70,7 @@ public:
   LimitedIo limitedIo;
 
   FaceTable faceTable;
+  DummyFaceSystem faceSystem;
   Forwarder forwarder;
   StrategyTester<S>& strategy;
   Fib& fib;

@@ -38,6 +38,7 @@
 #include "fw/random-strategy.hpp"
 
 #include "tests/test-common.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 #include <boost/mpl/vector.hpp>
 
 namespace nfd {
@@ -97,7 +98,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(InstanceName, T, Tests)
   BOOST_REQUIRE_LE(T::getMinVersion(), maxVersion);
 
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
   for (uint64_t version = T::getMinVersion(); version <= maxVersion; ++version) {
     Name versionedName = T::getVersionedStrategyName(version);
     unique_ptr<typename T::Strategy> instance;

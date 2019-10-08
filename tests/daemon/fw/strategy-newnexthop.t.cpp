@@ -29,6 +29,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 #include "choose-strategy.hpp"
 #include "dummy-strategy.hpp"
 
@@ -49,7 +50,8 @@ protected:
 
 protected:
   FaceTable faceTable;
-  Forwarder forwarder{faceTable};
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 };
 
 BOOST_AUTO_TEST_SUITE(Fw)

@@ -44,8 +44,9 @@ getDefaultStrategyName()
   return fw::BestRouteStrategy2::getStrategyName();
 }
 
-Forwarder::Forwarder(FaceTable& faceTable)
+Forwarder::Forwarder(FaceTable& faceTable, FaceSystemBase& faceSystem)
   : m_faceTable(faceTable)
+  , m_faceSystem(faceSystem)
   , m_unsolicitedDataPolicy(make_unique<fw::DefaultUnsolicitedDataPolicy>())
   , m_fib(m_nameTree)
   , m_pit(m_nameTree)

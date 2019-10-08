@@ -32,6 +32,7 @@
 #include "tests/test-common.hpp"
 #include "tests/key-chain-fixture.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 #include <ndn-cxx/security/command-interest-signer.hpp>
 #include <ndn-cxx/util/dummy-client-face.hpp>
@@ -172,7 +173,8 @@ public:
 
 protected:
   FaceTable m_faceTable;
-  Forwarder m_forwarder{m_faceTable};
+  DummyFaceSystem m_FaceSystem{m_faceTable};
+  Forwarder m_forwarder{m_faceTable, m_FaceSystem};
   shared_ptr<CommandAuthenticator> m_authenticator = CommandAuthenticator::create();
 };
 

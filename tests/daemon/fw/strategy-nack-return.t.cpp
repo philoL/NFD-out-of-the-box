@@ -36,6 +36,7 @@
 #include "strategy-tester.hpp"
 #include "topology-tester.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 
 #include <boost/mpl/vector.hpp>
 
@@ -51,7 +52,8 @@ class StrategyNackReturnFixture : public GlobalIoTimeFixture
 public:
   StrategyNackReturnFixture()
     : limitedIo(this)
-    , forwarder(faceTable)
+    , faceSystem(faceTable)
+    , forwarder(faceTable, faceSystem)
     , strategy(choose<StrategyTester<S>>(forwarder))
     , fib(forwarder.getFib())
     , pit(forwarder.getPit())
@@ -72,6 +74,7 @@ public:
   LimitedIo limitedIo;
 
   FaceTable faceTable;
+  DummyFaceSystem faceSystem;
   Forwarder forwarder;
   StrategyTester<S>& strategy;
   Fib& fib;

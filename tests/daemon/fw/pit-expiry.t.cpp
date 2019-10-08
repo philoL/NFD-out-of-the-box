@@ -26,6 +26,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "tests/daemon/face/dummy-face-system.hpp"
 #include "choose-strategy.hpp"
 #include "dummy-strategy.hpp"
 
@@ -122,7 +123,8 @@ public:
 BOOST_AUTO_TEST_CASE(UnsatisfiedInterest)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 
   auto face1 = make_shared<DummyFace>();
   auto face2 = make_shared<DummyFace>();
@@ -147,7 +149,8 @@ BOOST_AUTO_TEST_CASE(UnsatisfiedInterest)
 BOOST_AUTO_TEST_CASE(SatisfiedInterest)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 
   auto face1 = make_shared<DummyFace>();
   auto face2 = make_shared<DummyFace>();
@@ -172,7 +175,8 @@ BOOST_AUTO_TEST_CASE(SatisfiedInterest)
 BOOST_AUTO_TEST_CASE(CsHit)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 
   auto face1 = make_shared<DummyFace>();
   auto face2 = make_shared<DummyFace>();
@@ -210,7 +214,8 @@ BOOST_AUTO_TEST_CASE(CsHit)
 BOOST_AUTO_TEST_CASE(ReceiveNack)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 
   auto face1 = make_shared<DummyFace>();
   auto face2 = make_shared<DummyFace>();
@@ -246,7 +251,8 @@ BOOST_AUTO_TEST_CASE(ReceiveNack)
 BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveInterest)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 
   auto face = make_shared<DummyFace>();
   faceTable.add(face);
@@ -272,7 +278,8 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveInterest)
 BOOST_AUTO_TEST_CASE(ResetTimerBeforeSatisfyInterest)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+    DummyFaceSystem faceSystem{faceTable};
+Forwarder forwarder{faceTable, faceSystem};
 
   auto face1 = make_shared<DummyFace>();
   auto face2 = make_shared<DummyFace>();
@@ -329,7 +336,8 @@ BOOST_AUTO_TEST_CASE(ResetTimerBeforeSatisfyInterest)
 BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveData)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 
   auto face1 = make_shared<DummyFace>();
   auto face2 = make_shared<DummyFace>();
@@ -376,7 +384,8 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveData)
 BOOST_AUTO_TEST_CASE(ReceiveNackAfterResetTimer)
 {
   FaceTable faceTable;
-  Forwarder forwarder(faceTable);
+  DummyFaceSystem faceSystem{faceTable};
+  Forwarder forwarder{faceTable, faceSystem};
 
   auto face1 = make_shared<DummyFace>();
   auto face2 = make_shared<DummyFace>();
