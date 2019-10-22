@@ -27,6 +27,8 @@
 #define NFD_DAEMON_FW_SELF_LEARNING_STRATEGY_HPP
 
 #include "fw/strategy.hpp"
+#include "process-nack-traits.hpp"
+#include "retx-suppression-exponential.hpp"
 
 #include <ndn-cxx/lp/prefix-announcement-header.hpp>
 
@@ -38,11 +40,12 @@ namespace fw {
  *  This strategy first broadcasts Interest to learn a single path towards data,
  *  then unicasts subsequent Interests along the learned path
  *
- *  \see https://redmine.named-data.net/attachments/864/Self-learning-strategy-v1.pdf
+ *  \see https://github.com/philoL/NDN-Self-Learning/blob/master/self-learning-v2.pdf
  *
  *  \note This strategy is not EndpointId-aware
  */
 class SelfLearningStrategy : public Strategy
+                           , public ProcessNackTraits<SelfLearningStrategy>
 {
 public:
   explicit
@@ -79,10 +82,27 @@ public:
     bool isNonDiscoveryInterest = false;
   };
 
+  /// StrategyInfo on pit::Entry
+  class PitEntryInfo: public StrategyInfo
+  {
+  public:
+    static constexpr int
+    getTypeId()
+    {
+      return 1042;
+    }
+
+  public:
+    int rtxCount = 0;
+  };
+
 public: // triggers
   void
   afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
                        const shared_ptr<pit::Entry>& pitEntry) override;
+  void
+  afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntry,
+                       const FaceEndpoint& ingress, const Data& data) override;
 
   void
   afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
@@ -91,6 +111,14 @@ public: // triggers
   void
   afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
                    const shared_ptr<pit::Entry>& pitEntry) override;
+
+  void
+  afterUnicastFaceCreationSuccess(const shared_ptr<pit::Entry>& pitEntry, const FaceEndpoint& ingress,
+                                  const Face& face, const Data& data) override;
+
+  void
+  afterUnicastFaceCreationFailure(const shared_ptr<pit::Entry>& pitEntry,
+                                  const FaceEndpoint& ingress, const Data& data) override;
 
 private: // operations
 
@@ -106,18 +134,23 @@ private: // operations
   broadcastInterest(const Interest& interest, const Face& inFace,
                     const shared_ptr<pit::Entry>& pitEntry);
 
-  /** \brief Send an Interest to \p nexthops
-   */
   void
-  multicastInterest(const Interest& interest, const Face& inFace,
-                    const shared_ptr<pit::Entry>& pitEntry,
-                    const fib::NextHopList& nexthops);
+  noNexthopHandler(const FaceEndpoint& ingress, const Interest& interest,
+                   const shared_ptr<pit::Entry>& pitEntry);
+
+  void
+  allNexthopTriedHandler(const FaceEndpoint& ingress, const Interest& interest,
+                         const shared_ptr<pit::Entry>& pitEntry, const fib::NextHopList& nexthops);
+
+  void
+  withNexthopHandler(const Face& inFace, const Face& outFace, const Interest& interest,
+                     const shared_ptr<pit::Entry>& pitEntry);
 
   /** \brief Find a Prefix Announcement for the Data on the RIB thread, and forward
    *         the Data with the Prefix Announcement on the main thread
    */
   void
-  asyncProcessData(const shared_ptr<pit::Entry>& pitEntry, const Face& inFace, const Data& data);
+  asyncProcessData(const shared_ptr<pit::Entry>& pitEntry, const FaceEndpoint& ingress, const Data& data);
 
   /** \brief Check whether a PrefixAnnouncement needs to be attached to an incoming Data
    *
@@ -140,8 +173,17 @@ private: // operations
   void
   renewRoute(const Name& name, FaceId inFaceId, time::milliseconds maxLifetime);
 
-private:
+  bool
+  isThisConsumer(const shared_ptr<pit::Entry>& pitEntry);
+
+PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+  static const time::milliseconds RETX_SUPPRESSION_INITIAL;
+  static const time::milliseconds RETX_SUPPRESSION_MAX;
+  static const int RETX_TRIGGER_BROADCAST_COUNT;
   static const time::milliseconds ROUTE_RENEW_LIFETIME;
+  RetxSuppressionExponential m_retxSuppression;
+
+  friend ProcessNackTraits<SelfLearningStrategy>;
 };
 
 } // namespace fw

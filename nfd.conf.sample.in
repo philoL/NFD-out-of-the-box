@@ -61,7 +61,7 @@ tables
   ;   <prefix> <strategy>
   strategy_choice
   {
-    /               /localhost/nfd/strategy/best-route
+    /               /localhost/nfd/strategy/self-learning
     /localhost      /localhost/nfd/strategy/multicast
     /localhost/nfd  /localhost/nfd/strategy/best-route
     /ndn/broadcast  /localhost/nfd/strategy/multicast
@@ -144,7 +144,7 @@ face_system
     ;
     ;    sudo setcap cap_net_raw=eip /path/to/nfd
     ;
-    mcast yes ; set to 'no' to disable UDP multicast, default 'yes'
+    mcast no ; set to 'no' to disable UDP multicast, default 'yes'
     mcast_group 224.0.23.170 ; UDP multicast group (IPv4)
     mcast_port 56363 ; UDP multicast port number (IPv4)
     mcast_group_v6 ff02::1234 ; UDP multicast group (IPv6)
