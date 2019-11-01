@@ -26,6 +26,7 @@
 #ifndef NFD_DAEMON_FACE_FACE_SYSTEM_HPP
 #define NFD_DAEMON_FACE_FACE_SYSTEM_HPP
 
+#include "face-endpoint.hpp"
 #include "network-predicate.hpp"
 #include "common/config-file.hpp"
 
@@ -51,6 +52,9 @@ struct ProtocolFactoryCtorParams;
 class FaceSystem : noncopyable
 {
 public:
+  using UnicastFaceCreatedCallback = std::function<void(const Face&)>;
+  using UnicastFaceCreationFailedCallback = std::function<void()>;
+
   FaceSystem(FaceTable& faceTable, shared_ptr<ndn::net::NetworkMonitor> netmon);
 
   ~FaceSystem();
@@ -83,6 +87,12 @@ public:
    */
   void
   setConfigFile(ConfigFile& configFile);
+
+  /** \brief create a unicast face on receiving a packet from a multicast face
+   */
+  void
+  createUnicastFaceOnMulticast(const FaceEndpoint& ingress, UnicastFaceCreatedCallback successCb,
+                               UnicastFaceCreationFailedCallback failureCb);
 
   /** \brief configuration options from "general" section
    */

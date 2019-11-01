@@ -129,5 +129,11 @@ ProtocolFactory::doGetChannels() const
   return {};
 }
 
+optional<FaceUri>
+ProtocolFactory::getUnicastRemoteUriOnMulticast(std::string& scheme, const FaceEndpoint& ingress)
+{
+  return nullopt;
+}
+
 } // namespace face
 } // namespace nfd

@@ -164,5 +164,47 @@ FaceSystem::processConfig(const ConfigSection& configSection, bool isDryRun, con
   }
 }
 
+void
+FaceSystem::createUnicastFaceOnMulticast(const FaceEndpoint& ingress, UnicastFaceCreatedCallback successCb,
+                                         UnicastFaceCreationFailedCallback failureCb)
+{
+  optional<FaceUri> localUri = ingress.face.getLocalUri();
+  auto scheme = ingress.face.getRemoteUri().getScheme();
+  face::ProtocolFactory* factory = getFactoryByScheme(scheme);
+  if (not factory) {
+    NFD_LOG_DEBUG("Protocol factory does not exist");
+    failureCb();
+  }
+
+  auto remoteUri = factory->getUnicastRemoteUriOnMulticast(scheme, ingress);
+  if (remoteUri == nullopt) {
+    NFD_LOG_DEBUG("Protocol factory does not support unicast face creation on multicast");
+    failureCb();
+  }
+  if (scheme.find("udp") == 0) {
+   localUri = nullopt;
+  }
+  FaceParams faceParams = {ndn::nfd::FACE_PERSISTENCY_PERSISTENT, {}, {}, {}, false, false, true};
+  try {
+    factory->createFace({*remoteUri, localUri, faceParams},
+                        [this, successCb] (const shared_ptr<Face>& face) {
+                          m_faceTable.add(face);
+                          successCb(*face);
+                        },
+                        [failureCb] (uint32_t status, const std::string& reason) {
+                          NFD_LOG_ERROR("Face creation failed: " << reason);
+                          failureCb();
+                        });
+  }
+  catch (const std::runtime_error& error) {
+    NFD_LOG_ERROR("Face creation failed: " << error.what());
+    failureCb();
+  }
+  catch (const std::logic_error& error) {
+    NFD_LOG_ERROR("Face creation failed: " << error.what());
+    failureCb();
+  }
+}
+
 } // namespace face
 } // namespace nfd

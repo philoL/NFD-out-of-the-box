@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2019,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,6 +24,10 @@
  */
 
 #include "face/face-system.hpp"
+#include "face/ethernet-factory.hpp"
+
+#include "ethernet-fixture.hpp"
+#include "ethernet-factory-fixture.hpp"
 #include "face-system-fixture.hpp"
 
 #include "tests/test-common.hpp"
@@ -33,9 +37,9 @@ namespace face {
 namespace tests {
 
 BOOST_AUTO_TEST_SUITE(Face)
-BOOST_FIXTURE_TEST_SUITE(TestFaceSystem, FaceSystemFixture)
+BOOST_AUTO_TEST_SUITE(TestFaceSystem)
 
-BOOST_AUTO_TEST_SUITE(ProcessConfig)
+BOOST_FIXTURE_TEST_SUITE(ProcessConfig, FaceSystemFixture)
 
 BOOST_AUTO_TEST_CASE(Normal)
 {
@@ -160,6 +164,34 @@ BOOST_AUTO_TEST_CASE(ChangeProvidedSchemes)
 }
 
 BOOST_AUTO_TEST_SUITE_END() // ProcessConfig
+
+BOOST_FIXTURE_TEST_CASE(CreateFaceOnEtherMulticast, EthernetFactoryFixture)
+{
+
+  SKIP_IF_ETHERNET_NETIF_COUNT_LT(1);
+  auto localUri = factory.createChannel(netifs.front(), 1_min)->getUri();
+
+  createFace(factory,
+             FaceUri("ether://[01:00:5e:00:17:aa]"),
+             localUri,
+             {ndn::nfd::FACE_PERSISTENCY_PERSISTENT, {}, {}, {}, false, false, false},
+             {CreateFaceExpectedResult::SUCCESS, 0, ""});
+
+  auto etherMcastFaces = this->listEtherMcastFaces();
+  BOOST_REQUIRE_EQUAL(etherMcastFaces.size(), 1);
+
+  ethernet::Address sender(0x00, 0x00, 0x5e, 0x90, 0x10, 0x00);
+  EndpointId endpoint = 0;
+  std::memcpy(&endpoint, sender.data(), sender.size());
+
+  faceSystem.createUnicastFaceOnMulticast(FaceEndpoint(*etherMcastFaces.front(), endpoint),
+    [] (const nfd::Face& face) {
+      BOOST_CHECK_EQUAL(1, 1); // face should be created
+    },
+    [] {
+      BOOST_CHECK_EQUAL(1, 0); // should not reach here
+    });
+}
 
 BOOST_AUTO_TEST_SUITE_END() // TestFaceSystem
 BOOST_AUTO_TEST_SUITE_END() // Face

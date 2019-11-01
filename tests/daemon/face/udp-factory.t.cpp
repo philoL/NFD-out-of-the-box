@@ -25,6 +25,7 @@
 
 #include "face/udp-factory.hpp"
 
+#include "dummy-face.hpp"
 #include "face-system-fixture.hpp"
 #include "factory-test-common.hpp"
 
@@ -1046,6 +1047,18 @@ BOOST_AUTO_TEST_CASE(UnsupportedCreateFace)
              {ndn::nfd::FACE_PERSISTENCY_PERSISTENT, {}, {}, {}, true, false, false},
              {CreateFaceExpectedResult::FAILURE, 406,
               "Local fields can only be enabled on faces with local scope"});
+}
+
+BOOST_AUTO_TEST_CASE(GetRemoteUriOnMulticast)
+{
+  auto face = make_shared<DummyFace>();
+  std::string ip("1.1.1.1");
+  udp::Endpoint sender(boost::asio::ip::address::from_string(ip), 1718);
+  udp::Endpoint senderListener(boost::asio::ip::address::from_string(ip), 6363);
+  EndpointId endpoint = (static_cast<uint64_t>(sender.port()) << 32) |
+                        static_cast<uint64_t>(sender.address().to_v4().to_ulong());
+  std::string scheme("udp4");
+  BOOST_CHECK_EQUAL(*factory.getUnicastRemoteUriOnMulticast(scheme, FaceEndpoint(*face,endpoint)), FaceUri(senderListener));
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestUdpFactory

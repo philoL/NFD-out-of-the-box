@@ -460,5 +460,17 @@ UdpFactory::applyMcastConfig(const FaceSystem::ConfigContext&)
   }
 }
 
+optional<FaceUri>
+UdpFactory::getUnicastRemoteUriOnMulticast(std::string& scheme, const FaceEndpoint& ingress)
+{
+  if (scheme == "udp4") {
+    auto addr = boost::asio::ip::address_v4(ingress.endpoint % (1ULL << 32));
+    auto port = 6363;
+    udp::Endpoint endpoint(addr, port);
+    return FaceUri(endpoint);
+  }
+  return nullopt;
+}
+
 } // namespace face
 } // namespace nfd

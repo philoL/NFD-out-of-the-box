@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2019,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -71,6 +71,9 @@ public:
   shared_ptr<Face>
   createMulticastFace(const ndn::net::NetworkInterface& localEndpoint,
                       const ethernet::Address& group);
+
+  optional<FaceUri>
+  getUnicastRemoteUriOnMulticast(std::string& scheme, const FaceEndpoint& endpoint) override;
 
 private:
   /** \brief process face_system.ether config section

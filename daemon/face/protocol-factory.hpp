@@ -165,6 +165,13 @@ public:
   std::vector<shared_ptr<const Channel>>
   getChannels() const;
 
+  /** \brief Get remote uri for unicast face derived from face-endpointid
+   *
+   *  The base class return an empty face uri
+   */
+  virtual optional<FaceUri>
+  getUnicastRemoteUriOnMulticast(std::string& scheme, const FaceEndpoint& ingress);
+
 protected:
   template<typename ChannelMap>
   static std::vector<shared_ptr<const Channel>>

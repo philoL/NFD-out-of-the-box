@@ -24,6 +24,7 @@
  */
 
 #include "ethernet-factory.hpp"
+#include "ethernet-protocol.hpp"
 #include "generic-link-service.hpp"
 #include "multicast-ethernet-transport.hpp"
 
@@ -372,6 +373,16 @@ EthernetFactory::applyConfig(const FaceSystem::ConfigContext&)
   for (const auto& face : oldFaces) {
     face->close();
   }
+}
+
+optional<FaceUri>
+EthernetFactory::getUnicastRemoteUriOnMulticast(std::string& scheme, const FaceEndpoint& ingress)
+{
+  if (ingress.endpoint == 0) {
+    return nullopt;
+  }
+  auto address = ndn::ethernet::Address((uint8_t *)& ingress.endpoint);
+  return FaceUri(address);
 }
 
 } // namespace face

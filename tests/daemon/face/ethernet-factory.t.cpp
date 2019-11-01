@@ -25,7 +25,8 @@
 
 #include "face/ethernet-factory.hpp"
 
-#include "ethernet-fixture.hpp"
+#include "dummy-face.hpp"
+#include "ethernet-factory-fixture.hpp"
 #include "face-system-fixture.hpp"
 #include "factory-test-common.hpp"
 
@@ -34,39 +35,6 @@
 namespace nfd {
 namespace face {
 namespace tests {
-
-class EthernetFactoryFixture : public EthernetFixture
-                             , public FaceSystemFactoryFixture<EthernetFactory>
-{
-protected:
-  EthernetFactoryFixture()
-  {
-    this->copyRealNetifsToNetmon();
-  }
-
-  std::set<std::string>
-  listUrisOfAvailableNetifs() const
-  {
-    std::set<std::string> uris;
-    std::transform(netifs.begin(), netifs.end(), std::inserter(uris, uris.end()),
-                   [] (const auto& netif) {
-                     return FaceUri::fromDev(netif->getName()).toString();
-                   });
-    return uris;
-  }
-
-  std::vector<const Face*>
-  listEtherMcastFaces(ndn::nfd::LinkType linkType = ndn::nfd::LINK_TYPE_MULTI_ACCESS) const
-  {
-    return this->listFacesByScheme("ether", linkType);
-  }
-
-  size_t
-  countEtherMcastFaces(ndn::nfd::LinkType linkType = ndn::nfd::LINK_TYPE_MULTI_ACCESS) const
-  {
-    return this->listEtherMcastFaces(linkType).size();
-  }
-};
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_FIXTURE_TEST_SUITE(TestEthernetFactory, EthernetFactoryFixture)
@@ -539,6 +507,16 @@ BOOST_AUTO_TEST_CASE(UnsupportedCreateFace)
              {ndn::nfd::FACE_PERSISTENCY_PERSISTENT, {}, {}, {}, true, false, false},
              {CreateFaceExpectedResult::FAILURE, 406,
               "Local fields can only be enabled on faces with local scope"});
+}
+
+BOOST_AUTO_TEST_CASE(GetRemoteUriOnMulticast)
+{
+  ethernet::Address sender(0x00, 0x00, 0x5e, 0x90, 0x10, 0x00);
+  auto face = make_shared<DummyFace>();
+  EndpointId endpoint = 0;
+  std::memcpy(&endpoint, sender.data(), sender.size());
+  std::string scheme("ether");
+  BOOST_CHECK_EQUAL(*factory.getUnicastRemoteUriOnMulticast(scheme, FaceEndpoint(*face, endpoint)), FaceUri(sender));
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestEthernetFactory
