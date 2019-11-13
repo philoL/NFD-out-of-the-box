@@ -590,4 +590,19 @@ Forwarder::insertDeadNonceList(pit::Entry& pitEntry, Face* upstream)
   }
 }
 
+void
+Forwarder::createUnicastFaceOnMulticast(const shared_ptr<pit::Entry>& pitEntry,
+                                        const FaceEndpoint& ingress, const Data& data)
+{
+  m_faceSystem.createUnicastFaceOnMulticast(ingress,
+    [this, pitEntry, ingress, data] (const Face& face) {
+      this->dispatchToStrategy(*pitEntry,
+        [&] (fw::Strategy& strategy) { strategy.afterUnicastFaceCreationSuccess(pitEntry, ingress, face, data);});
+    },
+    [this, pitEntry, ingress, data] {
+      this->dispatchToStrategy(*pitEntry,
+        [&] (fw::Strategy& strategy) { strategy.afterUnicastFaceCreationFailure(pitEntry, ingress, data);});
+    });
+}
+
 } // namespace nfd

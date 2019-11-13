@@ -259,6 +259,10 @@ PROTECTED_WITH_TESTS_ELSE_PRIVATE:
     trigger(m_strategyChoice.findEffectiveStrategy(pitEntry));
   }
 
+  void
+  createUnicastFaceOnMulticast(const shared_ptr<pit::Entry>& pitEntry,
+                               const FaceEndpoint& ingress, const Data& data);
+
 private:
   ForwarderCounters m_counters;
 

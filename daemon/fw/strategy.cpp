@@ -214,6 +214,22 @@ Strategy::afterNewNextHop(const fib::NextHop& nextHop, const shared_ptr<pit::Ent
 }
 
 void
+Strategy::afterUnicastFaceCreationSuccess(const shared_ptr<pit::Entry>& pitEntry, const FaceEndpoint& ingress,
+                                          const Face& face, const Data& data)
+{
+  NFD_LOG_DEBUG("afterUnicastFaceCreationSuccess pitEntry=" << pitEntry->getName()
+                << " face=" << face.getId());
+}
+
+void
+Strategy::afterUnicastFaceCreationFailure(const shared_ptr<pit::Entry>& pitEntry,
+                                          const FaceEndpoint& ingress, const Data& data)
+{
+  NFD_LOG_DEBUG("afterUnicastFaceCreationFailure pitEntry=" << pitEntry->getName()
+                << " from face=" << ingress.face.getId());
+}
+
+void
 Strategy::sendData(const shared_ptr<pit::Entry>& pitEntry, const Data& data,
                    const FaceEndpoint& egress)
 {

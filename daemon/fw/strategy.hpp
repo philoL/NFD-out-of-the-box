@@ -249,6 +249,14 @@ public: // triggers
   virtual void
   afterNewNextHop(const fib::NextHop& nextHop, const shared_ptr<pit::Entry>& pitEntry);
 
+  virtual void
+  afterUnicastFaceCreationSuccess(const shared_ptr<pit::Entry>& pitEntry, const FaceEndpoint& ingress,
+                                  const Face& face, const Data& data);
+
+  virtual void
+  afterUnicastFaceCreationFailure(const shared_ptr<pit::Entry>& pitEntry,
+                                  const FaceEndpoint& ingress, const Data& data);
+
 protected: // actions
   /** \brief send Interest to egress
    *  \param pitEntry PIT entry
@@ -345,6 +353,13 @@ protected: // accessors
   getFaceTable() const
   {
     return m_forwarder.m_faceTable;
+  }
+
+  void
+  createUnicastFaceOnMulticast(const shared_ptr<pit::Entry>& pitEntry,
+                               const FaceEndpoint& ingress, const Data& data)
+  {
+    m_forwarder.createUnicastFaceOnMulticast(pitEntry, ingress, data);
   }
 
 protected: // instance name
