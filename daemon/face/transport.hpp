@@ -265,7 +265,7 @@ protected: // upper interface to be invoked by subclass
    *  \warning Behavior is undefined if packet size exceeds the MTU limit
    */
   void
-  receive(const Block& packet, const EndpointId& endpoint = 0);
+  receive(const Block& packet, const EndpointId& endpoint = {});
 
 protected: // properties to be set by subclass
   void

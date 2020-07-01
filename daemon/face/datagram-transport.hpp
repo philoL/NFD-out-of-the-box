@@ -261,7 +261,7 @@ template<class T, class U>
 EndpointId
 DatagramTransport<T, U>::makeEndpointId(const typename protocol::endpoint&)
 {
-  return 0;
+  return {};
 }
 
 } // namespace face

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(Forward)
     shared_ptr<pit::Entry> pitEntry = pit.insert(*interest).first;
 
     pitEntry->insertOrUpdateInRecord(*face1, *interest);
-    strategy.afterReceiveInterest(FaceEndpoint(*face1, 0), *interest, pitEntry);
+    strategy.afterReceiveInterest(FaceEndpoint(*face1), *interest, pitEntry);
   }
 
   // Map outFaceId -> SentInterests.

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -127,7 +127,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LocalhostInterestToLocal,
   pitEntry->insertOrUpdateInRecord(*this->localFace3, *interest);
 
   BOOST_REQUIRE(this->strategy.waitForAction(
-    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->localFace3, 0), *interest, pitEntry); },
+    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->localFace3), *interest, pitEntry); },
     this->limitedIo));
 
   BOOST_CHECK_EQUAL(this->strategy.sendInterestHistory.size(), 1);
@@ -146,7 +146,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LocalhostInterestToNonLocal,
   pitEntry->insertOrUpdateInRecord(*this->localFace3, *interest);
 
   BOOST_REQUIRE(this->strategy.waitForAction(
-    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->localFace3, 0), *interest, pitEntry); },
+    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->localFace3), *interest, pitEntry); },
     this->limitedIo, 1 + T::willSendNackNoRoute()));
 
   BOOST_CHECK_EQUAL(this->strategy.sendInterestHistory.size(), 0);
@@ -169,7 +169,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LocalhostInterestToLocalAndNonLocal,
   pitEntry->insertOrUpdateInRecord(*this->localFace3, *interest);
 
   BOOST_REQUIRE(this->strategy.waitForAction(
-    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->localFace3, 0), *interest, pitEntry); },
+    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->localFace3), *interest, pitEntry); },
     this->limitedIo));
 
   BOOST_REQUIRE_EQUAL(this->strategy.sendInterestHistory.size(), 1);
@@ -189,7 +189,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LocalhopInterestToNonLocal,
   pitEntry->insertOrUpdateInRecord(*this->nonLocalFace1, *interest);
 
   BOOST_REQUIRE(this->strategy.waitForAction(
-    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->nonLocalFace1, 0), *interest, pitEntry); },
+    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->nonLocalFace1), *interest, pitEntry); },
     this->limitedIo, 1 + T::willSendNackNoRoute()));
 
   BOOST_CHECK_EQUAL(this->strategy.sendInterestHistory.size(), 0);
@@ -212,7 +212,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LocalhopInterestToNonLocalAndLocal,
   pitEntry->insertOrUpdateInRecord(*this->nonLocalFace1, *interest);
 
   BOOST_REQUIRE(this->strategy.waitForAction(
-    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->nonLocalFace1, 0), *interest, pitEntry); },
+    [&] { this->strategy.afterReceiveInterest(FaceEndpoint(*this->nonLocalFace1), *interest, pitEntry); },
     this->limitedIo));
 
   BOOST_REQUIRE_EQUAL(this->strategy.sendInterestHistory.size(), 1);
@@ -235,7 +235,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LocalhostNackToNonLocal,
   pitEntry->insertOrUpdateOutRecord(*this->localFace4, *interest)->setIncomingNack(nack);
 
   BOOST_REQUIRE(this->strategy.waitForAction(
-    [&] { this->strategy.afterReceiveNack(FaceEndpoint(*this->localFace4, 0), nack, pitEntry); },
+    [&] { this->strategy.afterReceiveNack(FaceEndpoint(*this->localFace4), nack, pitEntry); },
     this->limitedIo, T::canProcessNack()));
 
   BOOST_CHECK_EQUAL(this->strategy.sendInterestHistory.size(), 0);
@@ -260,7 +260,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LocalhopNackToNonLocal,
   pitEntry->insertOrUpdateOutRecord(*this->localFace4, *interest)->setIncomingNack(nack);
 
   BOOST_REQUIRE(this->strategy.waitForAction(
-    [&] { this->strategy.afterReceiveNack(FaceEndpoint(*this->localFace4, 0), nack, pitEntry); },
+    [&] { this->strategy.afterReceiveNack(FaceEndpoint(*this->localFace4), nack, pitEntry); },
     this->limitedIo, T::canProcessNack()));
 
   BOOST_CHECK_EQUAL(this->strategy.sendInterestHistory.size(), 0);

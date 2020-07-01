@@ -23,30 +23,26 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NFD_DAEMON_FACE_FACE_ENDPOINT_HPP
-#define NFD_DAEMON_FACE_FACE_ENDPOINT_HPP
-
-#include "face.hpp"
+#include "face-endpoint.hpp"
 
 namespace nfd {
 
-/** \brief Represents a face-endpoint pair in the forwarder.
- *  \sa face::Face, face::EndpointId
- */
-class FaceEndpoint
+FaceEndpoint::FaceEndpoint(const Face& face, const EndpointId& endpoint)
+  : face(const_cast<Face&>(face))
+  , endpoint(endpoint)
 {
-public:
-  explicit
-  FaceEndpoint(const Face& face, const EndpointId& endpoint = {});
-
-public:
-  Face& face;
-  const EndpointId endpoint;
-};
+}
 
 std::ostream&
-operator<<(std::ostream& os, const FaceEndpoint& fe);
+operator<<(std::ostream& os, const FaceEndpoint& fe)
+{
+  if (auto endpoint = ndn::get_if<ndn::ethernet::Address>(&fe.endpoint)) {
+    return os << '(' << fe.face.getId() << ", " << *endpoint << ')';
+  }
+  else if (auto endpoint = ndn::get_if<nfd::udp::Endpoint>(&fe.endpoint)) {
+    return os << '(' << fe.face.getId() << ", " << *endpoint << ')';
+  }
+  return os << fe.face.getId();
+}
 
 } // namespace nfd
-
-#endif // NFD_DAEMON_FACE_FACE_ENDPOINT_HPP

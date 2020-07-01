@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_CASE(Forward)
   // first Interest goes to nexthop with lowest FIB cost,
   // however face1 is downstream so it cannot be used
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
-  strategy.afterReceiveInterest(FaceEndpoint(*face1, 0), *interest, pitEntry);
+  strategy.afterReceiveInterest(FaceEndpoint(*face1), *interest, pitEntry);
   BOOST_REQUIRE_EQUAL(strategy.sendInterestHistory.size(), 1);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.back().outFaceId, face2->getId());
 
@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE(Forward)
   std::function<void()> periodicalRetxFrom4; // let periodicalRetxFrom4 lambda capture itself
   periodicalRetxFrom4 = [&] {
     pitEntry->insertOrUpdateInRecord(*face4, *interest);
-    strategy.afterReceiveInterest(FaceEndpoint(*face4, 0), *interest, pitEntry);
+    strategy.afterReceiveInterest(FaceEndpoint(*face4), *interest, pitEntry);
 
     size_t nSent = strategy.sendInterestHistory.size();
     if (nSent > nSentLast) {
@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE(Forward)
   for (int i = 0; i < 3; ++i) {
     this->advanceClocks(TICK, BestRouteStrategy2::RETX_SUPPRESSION_MAX * 2);
     pitEntry->insertOrUpdateInRecord(*face5, *interest);
-    strategy.afterReceiveInterest(FaceEndpoint(*face5, 0), *interest, pitEntry);
+    strategy.afterReceiveInterest(FaceEndpoint(*face5), *interest, pitEntry);
   }
   BOOST_REQUIRE_EQUAL(strategy.sendInterestHistory.size(), 3);
   BOOST_CHECK_NE(strategy.sendInterestHistory[0].outFaceId, face1->getId());

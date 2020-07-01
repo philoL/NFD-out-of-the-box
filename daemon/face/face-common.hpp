@@ -26,6 +26,8 @@
 #ifndef NFD_DAEMON_FACE_FACE_COMMON_HPP
 #define NFD_DAEMON_FACE_FACE_COMMON_HPP
 
+#include "ethernet-protocol.hpp"
+#include "udp-protocol.hpp"
 #include "core/common.hpp"
 #include "common/logger.hpp"
 
@@ -66,9 +68,10 @@ const ssize_t MIN_MTU = 64;
  *  Incoming packets from the same remote endpoint have the same EndpointId,
  *  and incoming packets from different remote endpoints have different EndpointIds.
  *
- *  Typically, a point-to-point Transport has only one meaningful EndpointId (usually 0).
+ *  Typically, a point-to-point Transport has only one meaningful EndpointId (the
+ *  address of the remote peer).
  */
-using EndpointId = uint64_t;
+using EndpointId = ndn::variant<ndn::monostate, ethernet::Address, udp::Endpoint>;
 
 /** \brief Parameters used to set Transport properties or LinkService options on a newly created face.
  *

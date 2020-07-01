@@ -315,7 +315,7 @@ GenericLinkService::doReceivePacket(const Block& packet, const EndpointId& endpo
     bool isReassembled = false;
     Block netPkt;
     lp::Packet firstPkt;
-    std::tie(isReassembled, netPkt, firstPkt) = m_reassembler.receiveFragment(endpoint, pkt);
+    std::tie(isReassembled, netPkt, firstPkt) = m_reassembler.receiveFragment(pkt, endpoint);
     if (isReassembled) {
       this->decodeNetPacket(netPkt, firstPkt, endpoint);
     }

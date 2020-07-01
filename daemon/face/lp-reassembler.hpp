@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -79,7 +79,7 @@ public:
    *  \throw tlv::Error packet is malformed
    */
   std::tuple<bool, Block, lp::Packet>
-  receiveFragment(EndpointId remoteEndpoint, const lp::Packet& packet);
+  receiveFragment(const lp::Packet& packet, const EndpointId& remoteEndpoint = {});
 
   /** \brief count of partial packets
    */

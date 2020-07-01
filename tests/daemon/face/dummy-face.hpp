@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -62,17 +62,17 @@ public:
   /** \brief causes the face to receive an Interest
    */
   void
-  receiveInterest(const Interest& interest, const EndpointId& endpointId);
+  receiveInterest(const Interest& interest, const EndpointId& endpointId = {});
 
   /** \brief causes the face to receive a Data
    */
   void
-  receiveData(const Data& data, const EndpointId& endpointId);
+  receiveData(const Data& data, const EndpointId& endpointId = {});
 
   /** \brief causes the face to receive a Nack
    */
   void
-  receiveNack(const lp::Nack& nack, const EndpointId& endpointId);
+  receiveNack(const lp::Nack& nack, const EndpointId& endpointId = {});
 
   /** \brief Emitted after a network-layer packet is sent.
    *

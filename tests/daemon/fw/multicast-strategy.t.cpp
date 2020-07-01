@@ -76,7 +76,7 @@ BOOST_AUTO_TEST_CASE(Bug5123)
   shared_ptr<pit::Entry> pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
 
-  strategy.afterReceiveInterest(FaceEndpoint(*face1, 0), *interest, pitEntry);
+  strategy.afterReceiveInterest(FaceEndpoint(*face1), *interest, pitEntry);
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
 
   // Advance more than default suppression
@@ -86,7 +86,7 @@ BOOST_AUTO_TEST_CASE(Bug5123)
   pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face2, *interest);
 
-  strategy.afterReceiveInterest(FaceEndpoint(*face2, 0), *interest, pitEntry);
+  strategy.afterReceiveInterest(FaceEndpoint(*face2), *interest, pitEntry);
   // Since the interest is same as the one sent out by face 1 pit should not be rejected
   // as any data coming back should be able to satisfy original interest from face 1
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
@@ -152,7 +152,7 @@ BOOST_AUTO_TEST_CASE(Forward2)
   shared_ptr<pit::Entry> pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face3, *interest);
 
-  strategy.afterReceiveInterest(FaceEndpoint(*face3, 0), *interest, pitEntry);
+  strategy.afterReceiveInterest(FaceEndpoint(*face3), *interest, pitEntry);
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 2);
   std::set<FaceId> sentInterestFaceIds;
@@ -176,7 +176,7 @@ BOOST_AUTO_TEST_CASE(Forward2)
   std::function<void()> periodicalRetxFrom4; // let periodicalRetxFrom4 lambda capture itself
   periodicalRetxFrom4 = [&] {
     pitEntry->insertOrUpdateInRecord(*face3, *interest);
-    strategy.afterReceiveInterest(FaceEndpoint(*face3, 0), *interest, pitEntry);
+    strategy.afterReceiveInterest(FaceEndpoint(*face3), *interest, pitEntry);
 
     size_t nSent = strategy.sendInterestHistory.size();
     if (nSent > nSentLast) {
@@ -204,7 +204,7 @@ BOOST_AUTO_TEST_CASE(RejectLoopback)
   shared_ptr<pit::Entry> pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
 
-  strategy.afterReceiveInterest(FaceEndpoint(*face1, 0), *interest, pitEntry);
+  strategy.afterReceiveInterest(FaceEndpoint(*face1), *interest, pitEntry);
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 1);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 0);
 }
