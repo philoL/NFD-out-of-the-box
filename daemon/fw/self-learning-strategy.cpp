@@ -42,10 +42,17 @@ namespace nfd::fw {
 NFD_LOG_INIT(SelfLearningStrategy);
 NFD_REGISTER_STRATEGY(SelfLearningStrategy);
 
-constexpr time::milliseconds ROUTE_RENEW_LIFETIME = 10_min;
+const time::milliseconds SelfLearningStrategy::ROUTE_RENEW_LIFETIME(10_min);
+const time::milliseconds SelfLearningStrategy::RETX_SUPPRESSION_INITIAL(10);
+const time::milliseconds SelfLearningStrategy::RETX_SUPPRESSION_MAX(250);
+const int SelfLearningStrategy::RETX_TRIGGER_BROADCAST_COUNT(7);
 
 SelfLearningStrategy::SelfLearningStrategy(Forwarder& forwarder, const Name& name)
   : Strategy(forwarder)
+  , ProcessNackTraits(this)
+  , m_retxSuppression(RETX_SUPPRESSION_INITIAL,
+                      RetxSuppressionExponential::DEFAULT_MULTIPLIER,
+                      RETX_SUPPRESSION_MAX)
 {
   ParsedInstanceName parsed = parseInstanceName(name);
   if (!parsed.parameters.empty()) {
@@ -69,32 +76,40 @@ void
 SelfLearningStrategy::afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                                            const shared_ptr<pit::Entry>& pitEntry)
 {
+  RetxSuppressionResult suppression = m_retxSuppression.decidePerPitEntry(*pitEntry);
+  if (suppression == RetxSuppressionResult::SUPPRESS) {
+    NFD_LOG_DEBUG(interest << " from=" << ingress << " suppressed");
+    return;
+  }
+
   const fib::Entry& fibEntry = this->lookupFib(*pitEntry);
   const fib::NextHopList& nexthops = fibEntry.getNextHops();
 
-  bool isNonDiscovery = interest.getTag<lp::NonDiscoveryTag>() != nullptr;
-  auto inRecordInfo = pitEntry->getInRecord(ingress.face)->insertStrategyInfo<InRecordInfo>().first;
-  if (isNonDiscovery) { // "non-discovery" Interest
-    inRecordInfo->isNonDiscoveryInterest = true;
-    if (nexthops.empty()) { // return NACK if no matching FIB entry exists
-      NFD_LOG_INTEREST_FROM(interest, ingress, "non-discovery no-nexthop");
-      lp::NackHeader nackHeader;
-      nackHeader.setReason(lp::NackReason::NO_ROUTE);
-      this->sendNack(nackHeader, ingress.face, pitEntry);
-      this->rejectPendingInterest(pitEntry);
+  auto it = nexthops.end();
+  if (suppression == RetxSuppressionResult::NEW) { // new Interest
+    // find eligible nexthop with the lowest cost
+    it = std::find_if(nexthops.begin(), nexthops.end(), [&] (const auto& nexthop) {
+      return isNextHopEligible(ingress.face, interest, nexthop, pitEntry);
+    });
+
+    if (it == nexthops.end()) { // no next hop, do self-learning
+      noNexthopHandler(ingress, interest, pitEntry);
     }
-    else { // multicast it if matching FIB entry exists
-      multicastInterest(interest, ingress.face, pitEntry, nexthops);
+    else { // forward to nexthop with the lowest cost
+      hasUntriedNexthopHandler(ingress, it->getFace(), interest, pitEntry);
     }
   }
-  else { // "discovery" Interest
-    inRecordInfo->isNonDiscoveryInterest = false;
-    if (nexthops.empty()) { // broadcast it if no matching FIB entry exists
-      broadcastInterest(interest, ingress.face, pitEntry);
+  else { // retransmitted Interest to be forwarded
+    // find an unused upstream with the lowest cost except the downstream
+    it = std::find_if(nexthops.begin(), nexthops.end(), [&] (const auto& nexthop) {
+      return isNextHopEligible(ingress.face, interest, nexthop, pitEntry, true, time::steady_clock::now());
+    });
+
+    if (it == nexthops.end()) { // all next hops have been tried
+      allNexthopTriedHandler(ingress, interest, pitEntry, nexthops);
     }
-    else { // multicast it with "non-discovery" mark if matching FIB entry exists
-      interest.setTag(make_shared<lp::NonDiscoveryTag>(lp::EmptyValue{}));
-      multicastInterest(interest, ingress.face, pitEntry, nexthops);
+    else{
+      hasUntriedNexthopHandler(ingress, it->getFace(), interest, pitEntry);
     }
   }
 }
@@ -135,12 +150,12 @@ SelfLearningStrategy::afterReceiveNack(const lp::Nack& nack, const FaceEndpoint&
 {
   NFD_LOG_NACK_FROM(nack, ingress, "");
 
-  if (nack.getReason() == lp::NackReason::NO_ROUTE) { // remove FIB entries
+  if (nack.getReason() == lp::NackReason::NO_ROUTE) { // remove the FIB entry
     BOOST_ASSERT(this->lookupFib(*pitEntry).hasNextHops());
-    NFD_LOG_DEBUG("Send Nack to all downstreams");
-    this->sendNacks(nack.getHeader(), pitEntry);
+    NFD_LOG_DEBUG("Send NACK to all downstreams");
     renewRoute(nack.getInterest().getName(), ingress.face.getId(), 0_ms);
   }
+  this->processNack(ingress.face, nack, pitEntry);
 }
 
 void
@@ -163,22 +178,56 @@ SelfLearningStrategy::broadcastInterest(const Interest& interest, const Face& in
 }
 
 void
-SelfLearningStrategy::multicastInterest(const Interest& interest, const Face& inFace,
-                                        const shared_ptr<pit::Entry>& pitEntry,
-                                        const fib::NextHopList& nexthops)
+SelfLearningStrategy::noNexthopHandler(const FaceEndpoint& ingress, const Interest& interest,
+                                       const shared_ptr<pit::Entry>& pitEntry)
 {
-  for (const auto& nexthop : nexthops) {
-    if (!isNextHopEligible(inFace, interest, nexthop, pitEntry)) {
-      continue;
-    }
+  NFD_LOG_DEBUG("No next hop found, broadcast Interest=" << interest);
+  bool isNonDiscovery = interest.getTag<lp::NonDiscoveryTag>() != nullptr;
+  auto inRecordInfo = pitEntry->getInRecord(ingress.face)->insertStrategyInfo<InRecordInfo>().first;
+  inRecordInfo->isNonDiscoveryInterest = isNonDiscovery;
 
-    Face& outFace = nexthop.getFace();
-    NFD_LOG_INTEREST_FROM(interest, inFace.getId(), "send non-discovery to=" << outFace.getId());
-    auto outRecord = this->sendInterest(interest, outFace, pitEntry);
-    if (outRecord != nullptr) {
-      outRecord->insertStrategyInfo<OutRecordInfo>().first->isNonDiscoveryInterest = true;
-    }
+  if (isNonDiscovery) { // receive "non-discovery" Interest, send no-route NACK back
+    NFD_LOG_DEBUG("NACK non-discovery Interest=" << interest << " from=" << ingress << " noNextHop");
+    lp::NackHeader nackHeader;
+    nackHeader.setReason(lp::NackReason::NO_ROUTE);
+    this->sendNack(pitEntry, ingress.face, nackHeader);
+    this->rejectPendingInterest(pitEntry);
+    return;
   }
+  else { // receive "discovery" Interest, broadcast it
+    broadcastInterest(interest, ingress.face, pitEntry);
+    return;
+  }
+}
+
+void
+SelfLearningStrategy::allNexthopTriedHandler(const FaceEndpoint& ingress, const Interest& interest,
+                                             const shared_ptr<pit::Entry>& pitEntry, const fib::NextHopList& nexthops)
+{
+  NFD_LOG_DEBUG("all nexthops have been tried, forward in round-robin manner");
+  auto it = findEligibleNextHopWithEarliestOutRecord(ingress.face, interest, nexthops, pitEntry);
+  if (it == nexthops.end()) {
+    NFD_LOG_DEBUG(interest << " from=" << ingress << " retransmitNoNextHop");
+  }
+  else {
+    this->sendInterest(pitEntry, it->getFace(), interest);
+    NFD_LOG_DEBUG(interest << " from=" << ingress << " retransmit-retry-to Face=" << it->getFace().getId());
+  }
+}
+
+void
+SelfLearningStrategy::hasUntriedNexthopHandler(const FaceEndpoint& ingress, Face& outFace, const Interest& interest,
+                                               const shared_ptr<pit::Entry>& pitEntry)
+{
+  bool isNonDiscovery = interest.getTag<lp::NonDiscoveryTag>() != nullptr;
+  auto inRecordInfo = pitEntry->getInRecord(ingress.face)->insertStrategyInfo<InRecordInfo>().first;
+  inRecordInfo->isNonDiscoveryInterest = isNonDiscovery;
+  if (!isNonDiscovery) {
+    interest.setTag(make_shared<lp::NonDiscoveryTag>(lp::EmptyValue{}));
+  }
+  this->sendInterest(pitEntry, outFace, interest);
+  pitEntry->getOutRecord(outFace)->insertStrategyInfo<OutRecordInfo>().first->isNonDiscoveryInterest = true;
+  NFD_LOG_DEBUG("Send Interest " << interest << " to the untried Face=" << outFace.getId());
 }
 
 void
