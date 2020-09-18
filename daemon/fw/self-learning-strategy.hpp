@@ -27,6 +27,8 @@
 #define NFD_DAEMON_FW_SELF_LEARNING_STRATEGY_HPP
 
 #include "fw/strategy.hpp"
+#include "process-nack-traits.hpp"
+#include "retx-suppression-exponential.hpp"
 
 #include <ndn-cxx/lp/prefix-announcement-header.hpp>
 
@@ -41,6 +43,7 @@ namespace fw {
  *  \see https://redmine.named-data.net/attachments/864/Self-learning-strategy-v1.pdf
  */
 class SelfLearningStrategy : public Strategy
+                           , public ProcessNackTraits<SelfLearningStrategy>
 {
 public:
   explicit
@@ -104,12 +107,17 @@ private: // operations
   broadcastInterest(const Interest& interest, const Face& inFace,
                     const shared_ptr<pit::Entry>& pitEntry);
 
-  /** \brief Send an Interest to \p nexthops
-   */
   void
-  multicastInterest(const Interest& interest, const Face& inFace,
-                    const shared_ptr<pit::Entry>& pitEntry,
-                    const fib::NextHopList& nexthops);
+  noNexthopHandler(const FaceEndpoint& ingress, const Interest& interest,
+                   const shared_ptr<pit::Entry>& pitEntry);
+
+  void
+  allNexthopTriedHandler(const FaceEndpoint& ingress, const Interest& interest,
+                         const shared_ptr<pit::Entry>& pitEntry, const fib::NextHopList& nexthops);
+
+  void
+  hasUntriedNexthopHandler(const FaceEndpoint& ingress, Face& outFace, const Interest& interest,
+                           const shared_ptr<pit::Entry>& pitEntry);
 
   /** \brief Find a Prefix Announcement for the Data on the RIB thread, and forward
    *         the Data with the Prefix Announcement on the main thread
@@ -138,8 +146,14 @@ private: // operations
   void
   renewRoute(const Name& name, FaceId inFaceId, time::milliseconds maxLifetime);
 
-private:
+PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   static const time::milliseconds ROUTE_RENEW_LIFETIME;
+  static const time::milliseconds RETX_SUPPRESSION_INITIAL;
+  static const time::milliseconds RETX_SUPPRESSION_MAX;
+  static const int RETX_TRIGGER_BROADCAST_COUNT;
+  RetxSuppressionExponential m_retxSuppression;
+
+  friend ProcessNackTraits<SelfLearningStrategy>;
 };
 
 } // namespace fw
