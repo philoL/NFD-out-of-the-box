@@ -28,6 +28,8 @@
 
 #include "common/global.hpp"
 #include "common/logger.hpp"
+#include "face/channel.hpp"
+#include "face/face-common.hpp"
 #include "rib/service.hpp"
 
 #include <ndn-cxx/lp/empty-value.hpp>
@@ -68,7 +70,7 @@ SelfLearningStrategy::SelfLearningStrategy(Forwarder& forwarder, const Name& nam
 const Name&
 SelfLearningStrategy::getStrategyName()
 {
-  static const auto strategyName = Name("/localhost/nfd/strategy/self-learning").appendVersion(1);
+  static const auto strategyName = Name("/localhost/nfd/strategy/self-learning").appendVersion(2);
   return strategyName;
 }
 
@@ -115,6 +117,30 @@ SelfLearningStrategy::afterReceiveInterest(const Interest& interest, const FaceE
 }
 
 void
+SelfLearningStrategy::afterContentStoreHit(const Data& data, const FaceEndpoint& ingress,
+                                           const shared_ptr<pit::Entry>& pitEntry)
+{
+  NFD_LOG_DEBUG("after cs hit");
+  if (ingress.face.getScope() == ndn::nfd::FACE_SCOPE_LOCAL) {
+    NFD_LOG_DEBUG("this is consumer");
+    Strategy::afterContentStoreHit(pitEntry, ingress, data);
+  }
+  else {
+    // if interest is discovery Interest, and data does not contain a PA, attach a PA to it
+    bool isNonDiscovery = pitEntry->getInterest().getTag<lp::NonDiscoveryTag>() != nullptr;
+    auto paTag = data.getTag<lp::PrefixAnnouncementTag>();
+    if (not isNonDiscovery && not paTag) {
+      NFD_LOG_DEBUG("find pa");
+      asyncProcessData(pitEntry, ingress.face, data);
+    }
+    else {
+      NFD_LOG_DEBUG("no need to find pa");
+      Strategy::afterContentStoreHit(pitEntry, ingress, data);
+    }
+  }
+}
+
+void
 SelfLearningStrategy::afterReceiveData(const Data& data, const FaceEndpoint& ingress,
                                        const shared_ptr<pit::Entry>& pitEntry)
 {
@@ -136,7 +162,25 @@ SelfLearningStrategy::afterReceiveData(const Data& data, const FaceEndpoint& ing
   else { // outgoing Interest was discovery
     auto paTag = data.getTag<lp::PrefixAnnouncementTag>();
     if (paTag != nullptr) {
-      addRoute(pitEntry, ingress.face, data, *paTag->get().getPrefixAnn());
+      if (ingress.face.getLinkType() == ndn::nfd::LINK_TYPE_MULTI_ACCESS) { // create unicast face
+        NFD_LOG_DEBUG("Incoming face= " << ingress.face.getId() << " is multi-access, connect to the unicast face");
+        shared_ptr<face::Channel> channel = ingress.face.getChannel().lock();
+        face::FaceParams faceParams;
+        faceParams.persistency = ndn::nfd::FACE_PERSISTENCY_ON_DEMAND;
+        channel->connect(ingress.endpoint, faceParams,
+          [&] (const shared_ptr<nfd::Face>& face) {
+            NFD_LOG_DEBUG("unicast face created, add route");
+            this->addFace(face);
+            addRoute(pitEntry, *face, data, *paTag->get().getPrefixAnn());
+          },
+          [] (uint32_t, const std::string& reason) {
+            NFD_LOG_DEBUG("unicast face creation failied, reason= " << reason);
+          });
+      }
+      else {
+        NFD_LOG_DEBUG("Incoming face= " << ingress.face.getId() << " is not multi-access, announce route to it");
+        addRoute(pitEntry, ingress.face, data, *paTag->get().getPrefixAnn());
+      }
     }
     else { // Data contains no PrefixAnnouncement, upstreams do not support self-learning
     }
@@ -151,9 +195,43 @@ SelfLearningStrategy::afterReceiveNack(const lp::Nack& nack, const FaceEndpoint&
   NFD_LOG_NACK_FROM(nack, ingress, "");
 
   if (nack.getReason() == lp::NackReason::NO_ROUTE) { // remove the FIB entry
-    BOOST_ASSERT(this->lookupFib(*pitEntry).hasNextHops());
-    NFD_LOG_DEBUG("Send NACK to all downstreams");
     renewRoute(nack.getInterest().getName(), ingress.face.getId(), 0_ms);
+    auto outRecord = pitEntry->getOutRecord(ingress.face);
+    if (outRecord == pitEntry->out_end()) { // should not happen with correct behaviours
+      NFD_LOG_DEBUG("Receive no-route NACK for an unsent Interest");
+      return;
+    }
+    else {
+      NFD_LOG_DEBUG("Receive no-route NACK from=" << ingress.face.getId());
+      OutRecordInfo* outRecordInfo = outRecord->getStrategyInfo<OutRecordInfo>();
+      if (outRecordInfo && outRecordInfo->isNonDiscoveryInterest) {
+        // outgoing Interest was nondiscovery, try an unused next hops
+        const fib::Entry& fibEntry = this->lookupFib(*pitEntry);
+        const fib::NextHopList& nexthops = fibEntry.getNextHops();
+        auto it = std::find_if(nexthops.begin(), nexthops.end(), [&] (const auto& nexthop) {
+          return isNextHopEligible(ingress.face, pitEntry->getInterest(), nexthop, pitEntry, true, time::steady_clock::now());
+        });
+        if (it == nexthops.end()) {
+          // no untried path, send NACK to downstreams or braodcast discovery Interest at consumer
+          if (isThisConsumer(pitEntry)) {
+            auto inRecordInfo = pitEntry->in_begin()->insertStrategyInfo<InRecordInfo>().first;
+            inRecordInfo->isNonDiscoveryInterest = false;
+            auto interest = pitEntry->getInterest();
+            interest.removeTag<lp::NonDiscoveryTag>();
+            broadcastInterest(interest, pitEntry->in_begin()->getFace(), pitEntry);
+          }
+          else {
+            this->processNack(ingress.face, nack, pitEntry);
+          }
+        }
+        else {
+          hasUntriedNexthopHandler(ingress, it->getFace(), pitEntry->getInterest(), pitEntry);
+        }
+      }
+      else { // outgoing Interest was discovery
+        // should not happen
+      }
+    }
   }
   this->processNack(ingress.face, nack, pitEntry);
 }
@@ -307,6 +385,16 @@ SelfLearningStrategy::renewRoute(const Name& name, FaceId inFaceId, time::millis
           NFD_LOG_DEBUG("Renew route with result=" << res);
         });
     });
+}
+
+bool
+SelfLearningStrategy::isThisConsumer(const shared_ptr<pit::Entry>& pitEntry)
+{
+  const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
+  if (inRecords.size() == 1 && inRecords.front().getFace().getScope() == ndn::nfd::FACE_SCOPE_LOCAL) {
+    return true;
+  }
+  return false;
 }
 
 } // namespace nfd::fw
