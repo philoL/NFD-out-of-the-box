@@ -285,6 +285,13 @@ public:
   {
     return 0;
   }
+
+  void
+  connect(const EndpointId&,
+          const face::FaceParams&,
+          const face::FaceCreatedCallback&,
+          const face::FaceCreationFailedCallback&,
+          time::nanoseconds) final {}
 };
 
 class TestProtocolFactory : public face::ProtocolFactory

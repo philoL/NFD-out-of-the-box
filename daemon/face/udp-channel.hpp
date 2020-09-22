@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -64,13 +64,14 @@ public:
   }
 
   /**
-   * \brief Create a unicast UDP face toward \p remoteEndpoint
+   * \brief Create a unicast UDP face toward \p endpointId
    */
   void
-  connect(const udp::Endpoint& remoteEndpoint,
+  connect(const EndpointId& endpointId,
           const FaceParams& params,
           const FaceCreatedCallback& onFaceCreated,
-          const FaceCreationFailedCallback& onConnectFailed);
+          const FaceCreationFailedCallback& onConnectFailed,
+          time::nanoseconds timeout = 8_s) override;
 
   /**
    * \brief Start listening

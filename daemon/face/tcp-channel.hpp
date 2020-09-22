@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -85,14 +85,14 @@ public:
          int backlog = boost::asio::ip::tcp::acceptor::max_connections);
 
   /**
-   * \brief Create a face by establishing a TCP connection to \p remoteEndpoint
+   * \brief Create a face by establishing a TCP connection to \p endpointId
    */
   void
-  connect(const tcp::Endpoint& remoteEndpoint,
+  connect(const EndpointId& endpointId,
           const FaceParams& params,
           const FaceCreatedCallback& onFaceCreated,
           const FaceCreationFailedCallback& onConnectFailed,
-          time::nanoseconds timeout = 8_s);
+          time::nanoseconds timeout = 8_s) override;
 
 private:
   void

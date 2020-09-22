@@ -49,25 +49,31 @@ UdpChannel::UdpChannel(const udp::Endpoint& localEndpoint,
 }
 
 void
-UdpChannel::connect(const udp::Endpoint& remoteEndpoint,
+UdpChannel::connect(const EndpointId& endpointId,
                     const FaceParams& params,
                     const FaceCreatedCallback& onFaceCreated,
-                    const FaceCreationFailedCallback& onConnectFailed)
+                    const FaceCreationFailedCallback& onConnectFailed,
+                    time::nanoseconds timeout)
 {
-  shared_ptr<Face> face;
-  try {
-    face = createFace(remoteEndpoint, params).second;
+  if (auto remoteEndpoint = ndn::get_if<udp::Endpoint>(&endpointId)) {
+    shared_ptr<Face> face;
+    try {
+      face = createFace(*remoteEndpoint, params).second;
+    }
+    catch (const boost::system::system_error& e) {
+      NFD_LOG_CHAN_DEBUG("Face creation for " << *remoteEndpoint << " failed: " << e.what());
+      if (onConnectFailed)
+        onConnectFailed(504, "Face creation failed: "s + e.what());
+      return;
+    }
+
+    // Need to invoke the callback regardless of whether or not we had already
+    // created the face so that control responses and such can be sent
+    onFaceCreated(face);
   }
-  catch (const boost::system::system_error& e) {
-    NFD_LOG_CHAN_DEBUG("Face creation for " << remoteEndpoint << " failed: " << e.what());
-    if (onConnectFailed)
-      onConnectFailed(504, "Face creation failed: "s + e.what());
+  else {
     return;
   }
-
-  // Need to invoke the callback regardless of whether or not we had already
-  // created the face so that control responses and such can be sent
-  onFaceCreated(face);
 }
 
 void

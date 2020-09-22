@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2017,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -63,6 +63,15 @@ public:
   size() const override
   {
     return m_channelFaces.size();
+  }
+
+  void
+  connect(const EndpointId&,
+          const FaceParams&,
+          const FaceCreatedCallback&,
+          const FaceCreationFailedCallback&,
+          time::nanoseconds) override
+  {
   }
 
   /**

@@ -54,25 +54,30 @@ EthernetChannel::EthernetChannel(shared_ptr<const ndn::net::NetworkInterface> lo
 }
 
 void
-EthernetChannel::connect(const ethernet::Address& remoteEndpoint,
+EthernetChannel::connect(const EndpointId& endpointId,
                          const FaceParams& params,
                          const FaceCreatedCallback& onFaceCreated,
-                         const FaceCreationFailedCallback& onConnectFailed)
+                         const FaceCreationFailedCallback& onConnectFailed,
+                         time::nanoseconds timeout)
 {
-  shared_ptr<Face> face;
-  try {
-    face = createFace(remoteEndpoint, params).second;
-  }
-  catch (const boost::system::system_error& e) {
-    NFD_LOG_CHAN_DEBUG("Face creation for " << remoteEndpoint << " failed: " << e.what());
-    if (onConnectFailed)
-      onConnectFailed(504, "Face creation failed: "s + e.what());
-    return;
-  }
+  if (auto remoteEndpoint = ndn::get_if<ethernet::Address>(&endpointId)) {
+    shared_ptr<Face> face;
+    try {
+      face = createFace(*remoteEndpoint, params).second;
+    }
+    catch (const boost::system::system_error& e) {
+      NFD_LOG_CHAN_DEBUG("Face creation for " << *remoteEndpoint << " failed: " << e.what());
+      if (onConnectFailed)
+        onConnectFailed(504, "Face creation failed: "s + e.what());
+      return;
+    }
 
-  // Need to invoke the callback regardless of whether or not we had already
-  // created the face so that control responses and such can be sent
-  onFaceCreated(face);
+    // Need to invoke the callback regardless of whether or not we had already
+    // created the face so that control responses and such can be sent
+    onFaceCreated(face);
+  }
+  else {
+  }
 }
 
 void

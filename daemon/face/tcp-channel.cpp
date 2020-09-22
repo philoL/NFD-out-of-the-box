@@ -71,28 +71,32 @@ TcpChannel::listen(const FaceCreatedCallback& onFaceCreated,
 }
 
 void
-TcpChannel::connect(const tcp::Endpoint& remoteEndpoint,
+TcpChannel::connect(const EndpointId& endpointId,
                     const FaceParams& params,
                     const FaceCreatedCallback& onFaceCreated,
                     const FaceCreationFailedCallback& onConnectFailed,
                     time::nanoseconds timeout)
 {
-  auto it = m_channelFaces.find(remoteEndpoint);
-  if (it != m_channelFaces.end()) {
-    NFD_LOG_CHAN_TRACE("Reusing existing face for " << remoteEndpoint);
-    onFaceCreated(it->second);
-    return;
+  if (auto remoteEndpoint = ndn::get_if<tcp::Endpoint>(&endpointId)) {
+    auto it = m_channelFaces.find(*remoteEndpoint);
+    if (it != m_channelFaces.end()) {
+      NFD_LOG_CHAN_TRACE("Reusing existing face for " << *remoteEndpoint);
+      onFaceCreated(it->second);
+      return;
+    }
+
+    auto clientSocket = make_shared<ip::tcp::socket>(getGlobalIoService());
+    auto timeoutEvent = getScheduler().schedule(timeout, [=] {
+      handleConnectTimeout(*remoteEndpoint, clientSocket, onConnectFailed);
+    });
+
+    NFD_LOG_CHAN_TRACE("Connecting to " << *remoteEndpoint);
+    clientSocket->async_connect(*remoteEndpoint, [=] (const auto& e) {
+      this->handleConnect(e, *remoteEndpoint, clientSocket, params, timeoutEvent, onFaceCreated, onConnectFailed);
+    });
   }
-
-  auto clientSocket = make_shared<ip::tcp::socket>(getGlobalIoService());
-  auto timeoutEvent = getScheduler().schedule(timeout, [=] {
-    handleConnectTimeout(remoteEndpoint, clientSocket, onConnectFailed);
-  });
-
-  NFD_LOG_CHAN_TRACE("Connecting to " << remoteEndpoint);
-  clientSocket->async_connect(remoteEndpoint, [=] (const auto& e) {
-    this->handleConnect(e, remoteEndpoint, clientSocket, params, timeoutEvent, onFaceCreated, onConnectFailed);
-  });
+  else {
+  }
 }
 
 void
