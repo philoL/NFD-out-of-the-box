@@ -27,7 +27,9 @@
 #define NFD_DAEMON_FACE_CHANNEL_HPP
 
 #include "channel-log.hpp"
+#include "ethernet-protocol.hpp"
 #include "face-common.hpp"
+#include "udp-protocol.hpp"
 
 namespace nfd {
 namespace face {

@@ -37,10 +37,14 @@ namespace fw {
 
 /** \brief Self-learning forwarding strategy
  *
- *  This strategy first broadcasts Interest to learn a single path towards data,
- *  then unicasts subsequent Interests along the learned path.
+ *  This strategy forwards Interests in round-robin manner according the ranking of next hops,
+ *  with Interest suppression and retransmission mechanisms added.
+ *  In addition, when no next hop is found in FIB, the Interest will be broadcast to non-local faces.
  *
- *  \see https://redmine.named-data.net/attachments/864/Self-learning-strategy-v1.pdf
+ *  On receiving Data for broadcast Interest, a route will be added to FIB according to the Prefix Announcement
+ *  attached to Data. In addition, unicast face will be created when receiving data from a multicast face.
+ *
+ *  \see https://github.com/philoL/NDN-Self-Learning/blob/master/self-learning-v2.pdf
  */
 class SelfLearningStrategy : public Strategy
                            , public ProcessNackTraits<SelfLearningStrategy>
@@ -84,6 +88,10 @@ public: // triggers
   void
   afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
                        const shared_ptr<pit::Entry>& pitEntry) override;
+
+  void
+  afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntry,
+                       const FaceEndpoint& ingress, const Data& data) override;
 
   void
   afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
@@ -145,6 +153,10 @@ private: // operations
    */
   void
   renewRoute(const Name& name, FaceId inFaceId, time::milliseconds maxLifetime);
+
+private:
+  bool
+  isThisConsumer(const shared_ptr<pit::Entry>& pitEntry);
 
 PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   static const time::milliseconds ROUTE_RENEW_LIFETIME;
