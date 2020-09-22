@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_CASE(FaceClosure)
   BOOST_CHECK_EQUAL(channel->size(), 0);
 
   shared_ptr<nfd::Face> face;
-  channel->connect({0x00, 0x00, 0x5e, 0x00, 0x53, 0x5e}, {},
+  channel->connect(ethernet::Address({0x00, 0x00, 0x5e, 0x00, 0x53, 0x5e}), {},
                    [&face] (const shared_ptr<nfd::Face>& newFace) {
                      BOOST_REQUIRE(newFace != nullptr);
                      face = newFace;

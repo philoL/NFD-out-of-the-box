@@ -64,6 +64,15 @@ public:
     return m_channelFaces.size();
   }
 
+  void
+  connect(const EndpointId&,
+          const FaceParams&,
+          const FaceCreatedCallback&,
+          const FaceCreationFailedCallback&,
+          time::nanoseconds) override
+  {
+  }
+
   /**
    * \brief Enable listening on the local endpoint, accept connections,
    *        and create faces when remote host makes a connection.

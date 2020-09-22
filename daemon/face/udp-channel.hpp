@@ -64,13 +64,14 @@ public:
   }
 
   /**
-   * \brief Create a unicast UDP face toward \p remoteEndpoint.
+   * \brief Create a unicast UDP face toward \p endpointId
    */
   void
-  connect(const udp::Endpoint& remoteEndpoint,
+  connect(const EndpointId& endpointId,
           const FaceParams& params,
           const FaceCreatedCallback& onFaceCreated,
-          const FaceCreationFailedCallback& onConnectFailed);
+          const FaceCreationFailedCallback& onConnectFailed,
+          time::nanoseconds timeout = 8_s) override;
 
   /**
    * \brief Start listening.

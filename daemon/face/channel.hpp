@@ -72,6 +72,13 @@ public:
   virtual size_t
   size() const = 0;
 
+  virtual void
+  connect(const EndpointId& endpoint,
+          const FaceParams& faceParams,
+          const std::function<void(const shared_ptr<Face>&)>& onFaceCreated,
+          const std::function<void(uint32_t status, const std::string& reason)>& onConnectFailed,
+          time::nanoseconds timeout = 8_s) = 0;
+
 protected:
   void
   setUri(const FaceUri& uri) noexcept;
