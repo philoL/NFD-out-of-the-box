@@ -353,7 +353,8 @@ SelfLearningStrategy::needPrefixAnn(const shared_ptr<pit::Entry>& pitEntry)
       if (inRecordInfo && !inRecordInfo->isNonDiscoveryInterest) {
         hasDiscoveryInterest = true;
       }
-      if (inRecord.getFace().getScope() != ndn::nfd::FACE_SCOPE_LOCAL) {
+      if (inRecord.getFace().getScope() != ndn::nfd::FACE_SCOPE_LOCAL ||
+          inRecord.getFace().getRemoteUri().getScheme() !=  "wsclient") {
         directToConsumer = false;
       }
     }
