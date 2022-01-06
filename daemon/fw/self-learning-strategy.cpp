@@ -131,7 +131,7 @@ SelfLearningStrategy::afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntr
     auto paTag = data.getTag<lp::PrefixAnnouncementTag>();
     if (not isNonDiscovery && not paTag) {
       NFD_LOG_DEBUG("find pa");
-      asyncProcessData(pitEntry, ingress.face, data);
+      sendData(pitEntry, data, ingress.face);
     }
     else {
       NFD_LOG_DEBUG("no need to find pa");
