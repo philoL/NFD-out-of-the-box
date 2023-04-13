@@ -58,7 +58,7 @@ UdpChannel::connect(const EndpointId& endpointId,
                     const FaceCreationFailedCallback& onConnectFailed,
                     time::nanoseconds timeout)
 {
-  if (auto remoteEndpoint = ndn::get_if<udp::Endpoint>(&endpointId)) {
+  if (auto remoteEndpoint = std::get_if<udp::Endpoint>(&endpointId)) {
     shared_ptr<Face> face;
     try {
       face = createFace(*remoteEndpoint, params).second;

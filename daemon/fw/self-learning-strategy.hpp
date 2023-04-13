@@ -157,7 +157,7 @@ private:
   bool
   isThisConsumer(const shared_ptr<pit::Entry>& pitEntry);
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   static const time::milliseconds ROUTE_RENEW_LIFETIME;
   static const time::milliseconds RETX_SUPPRESSION_INITIAL;
   static const time::milliseconds RETX_SUPPRESSION_MAX;

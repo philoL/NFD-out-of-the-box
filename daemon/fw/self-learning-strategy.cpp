@@ -53,8 +53,8 @@ SelfLearningStrategy::SelfLearningStrategy(Forwarder& forwarder, const Name& nam
   : Strategy(forwarder)
   , ProcessNackTraits(this)
   , m_retxSuppression(RETX_SUPPRESSION_INITIAL,
-                      RetxSuppressionExponential::DEFAULT_MULTIPLIER,
-                      RETX_SUPPRESSION_MAX)
+                      RETX_SUPPRESSION_MAX,
+                      RetxSuppressionExponential::DEFAULT_MULTIPLIER)
 {
   ParsedInstanceName parsed = parseInstanceName(name);
   if (!parsed.parameters.empty()) {
@@ -70,7 +70,7 @@ SelfLearningStrategy::SelfLearningStrategy(Forwarder& forwarder, const Name& nam
 const Name&
 SelfLearningStrategy::getStrategyName()
 {
-  static const auto strategyName = Name("/localhost/nfd/strategy/self-learning").appendVersion(2);
+  static const auto strategyName = Name("/localhost/nfd/strategy/self-learning").appendVersion(1);
   return strategyName;
 }
 
@@ -123,7 +123,7 @@ SelfLearningStrategy::afterContentStoreHit(const Data& data, const FaceEndpoint&
   NFD_LOG_DEBUG("after cs hit");
   if (ingress.face.getScope() == ndn::nfd::FACE_SCOPE_LOCAL) {
     NFD_LOG_DEBUG("this is consumer");
-    Strategy::afterContentStoreHit(pitEntry, ingress, data);
+    Strategy::afterContentStoreHit(data, ingress, pitEntry);
   }
   else {
     // if interest is discovery Interest, and data does not contain a PA, attach a PA to it
@@ -131,11 +131,11 @@ SelfLearningStrategy::afterContentStoreHit(const Data& data, const FaceEndpoint&
     auto paTag = data.getTag<lp::PrefixAnnouncementTag>();
     if (not isNonDiscovery && not paTag) {
       NFD_LOG_DEBUG("find pa");
-      sendData(pitEntry, data, ingress.face);
+      sendData(data, ingress.face, pitEntry);
     }
     else {
       NFD_LOG_DEBUG("no need to find pa");
-      Strategy::afterContentStoreHit(pitEntry, ingress, data);
+      Strategy::afterContentStoreHit(data, ingress, pitEntry);
     }
   }
 }
@@ -221,7 +221,7 @@ SelfLearningStrategy::afterReceiveNack(const lp::Nack& nack, const FaceEndpoint&
             broadcastInterest(interest, pitEntry->in_begin()->getFace(), pitEntry);
           }
           else {
-            this->processNack(ingress.face, nack, pitEntry);
+            this->processNack(nack, ingress.face, pitEntry);
           }
         }
         else {
@@ -233,7 +233,7 @@ SelfLearningStrategy::afterReceiveNack(const lp::Nack& nack, const FaceEndpoint&
       }
     }
   }
-  this->processNack(ingress.face, nack, pitEntry);
+  this->processNack(nack, ingress.face, pitEntry);
 }
 
 void
@@ -268,7 +268,7 @@ SelfLearningStrategy::noNexthopHandler(const FaceEndpoint& ingress, const Intere
     NFD_LOG_DEBUG("NACK non-discovery Interest=" << interest << " from=" << ingress << " noNextHop");
     lp::NackHeader nackHeader;
     nackHeader.setReason(lp::NackReason::NO_ROUTE);
-    this->sendNack(pitEntry, ingress.face, nackHeader);
+    this->sendNack(nackHeader, ingress.face, pitEntry);
     this->rejectPendingInterest(pitEntry);
     return;
   }
@@ -288,7 +288,7 @@ SelfLearningStrategy::allNexthopTriedHandler(const FaceEndpoint& ingress, const 
     NFD_LOG_DEBUG(interest << " from=" << ingress << " retransmitNoNextHop");
   }
   else {
-    this->sendInterest(pitEntry, it->getFace(), interest);
+    this->sendInterest(interest, it->getFace(), pitEntry);
     NFD_LOG_DEBUG(interest << " from=" << ingress << " retransmit-retry-to Face=" << it->getFace().getId());
   }
 }
@@ -303,7 +303,7 @@ SelfLearningStrategy::hasUntriedNexthopHandler(const FaceEndpoint& ingress, Face
   if (!isNonDiscovery) {
     interest.setTag(make_shared<lp::NonDiscoveryTag>(lp::EmptyValue{}));
   }
-  this->sendInterest(pitEntry, outFace, interest);
+  this->sendInterest(interest, outFace, pitEntry);
   pitEntry->getOutRecord(outFace)->insertStrategyInfo<OutRecordInfo>().first->isNonDiscoveryInterest = true;
   NFD_LOG_DEBUG("Send Interest " << interest << " to the untried Face=" << outFace.getId());
 }

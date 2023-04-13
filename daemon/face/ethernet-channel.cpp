@@ -55,7 +55,7 @@ EthernetChannel::connect(const EndpointId& endpointId,
                          const FaceCreationFailedCallback& onConnectFailed,
                          time::nanoseconds timeout)
 {
-  if (auto remoteEndpoint = ndn::get_if<ethernet::Address>(&endpointId)) {
+  if (auto remoteEndpoint = std::get_if<ethernet::Address>(&endpointId)) {
     shared_ptr<Face> face;
     try {
       face = createFace(*remoteEndpoint, params).second;

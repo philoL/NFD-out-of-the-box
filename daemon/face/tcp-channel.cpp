@@ -77,7 +77,7 @@ TcpChannel::connect(const EndpointId& endpointId,
                     const FaceCreationFailedCallback& onConnectFailed,
                     time::nanoseconds timeout)
 {
-  if (auto remoteEndpoint = ndn::get_if<tcp::Endpoint>(&endpointId)) {
+  if (auto remoteEndpoint = std::get_if<tcp::Endpoint>(&endpointId)) {
     auto it = m_channelFaces.find(*remoteEndpoint);
     if (it != m_channelFaces.end()) {
       NFD_LOG_CHAN_TRACE("Reusing existing face for " << *remoteEndpoint);

@@ -76,7 +76,7 @@ inline constexpr ssize_t MIN_MTU = 64;
  * Typically, a point-to-point Transport has only one meaningful EndpointId,
  * represented by `std::monostate`.
  */
-using EndpointId = ndn::variant<ndn::monostate, ethernet::Address, udp::Endpoint, tcp::Endpoint>;
+using EndpointId = std::variant<std::monostate, ethernet::Address, udp::Endpoint, tcp::Endpoint>;
 
 /**
  * \brief Parameters used to set Transport properties or LinkService options on a newly created face.

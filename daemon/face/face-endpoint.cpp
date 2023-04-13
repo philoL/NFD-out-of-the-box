@@ -47,6 +47,9 @@ FaceEndpoint::print(std::ostream& os) const
     },
     [&] (const udp::Endpoint& ep) {
       os << '(' << face.getId() << ", " << ep << ')';
+    },
+    [&] (const tcp::Endpoint& ep) {
+      os << '(' << face.getId() << ", " << ep << ')';
     }), endpoint);
 }
 
