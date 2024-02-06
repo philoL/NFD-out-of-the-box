@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,11 +28,11 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include <ndn-cxx/lp/fields.hpp>
 
-using namespace nfd::tests;
+namespace nfd::tests {
+
+using namespace nfd::face;
 
 class LpReassemblerFixture : public GlobalIoTimeFixture
 {
@@ -40,8 +40,8 @@ protected:
   LpReassemblerFixture()
   {
     reassembler.beforeTimeout.connect(
-      [this] (EndpointId remoteEp, size_t nDroppedFragments) {
-        timeoutHistory.push_back({remoteEp, nDroppedFragments});
+      [this] (const EndpointId& remoteEp, size_t nDroppedFragments) {
+        timeoutHistory.emplace_back(remoteEp, nDroppedFragments);
       });
   }
 
@@ -49,12 +49,10 @@ protected:
   LpReassembler reassembler{{}};
   std::vector<std::pair<EndpointId, size_t>> timeoutHistory;
 
-  static const uint8_t data[10];
-};
-
-const uint8_t LpReassemblerFixture::data[10] = {
-  0x06, 0x08, // Data
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+  static constexpr uint8_t data[] = {
+    0x06, 0x08, // Data
+          0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+  };
 };
 
 BOOST_AUTO_TEST_SUITE(Face)
@@ -76,7 +74,7 @@ BOOST_AUTO_TEST_CASE(Normal)
   bool isComplete = false;
   Block netPacket;
   lp::Packet packet;
-  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment(0, received);
+  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment({}, received);
 
   BOOST_REQUIRE(isComplete);
   BOOST_CHECK(packet.has<lp::NextHopFaceIdField>());
@@ -97,7 +95,7 @@ BOOST_AUTO_TEST_CASE(OmitFragIndex)
   bool isComplete = false;
   Block netPacket;
   lp::Packet packet;
-  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment(0, received);
+  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment({}, received);
 
   BOOST_REQUIRE(isComplete);
   BOOST_CHECK(packet.has<lp::NextHopFaceIdField>());
@@ -117,7 +115,7 @@ BOOST_AUTO_TEST_CASE(OmitFragCount)
   bool isComplete = false;
   Block netPacket;
   lp::Packet packet;
-  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment(0, received);
+  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment({}, received);
 
   BOOST_REQUIRE(isComplete);
   BOOST_CHECK(packet.has<lp::NextHopFaceIdField>());
@@ -136,7 +134,7 @@ BOOST_AUTO_TEST_CASE(OmitFragIndexAndFragCount)
   bool isComplete = false;
   Block netPacket;
   lp::Packet packet;
-  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment(0, received);
+  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment({}, received);
 
   BOOST_REQUIRE(isComplete);
   BOOST_CHECK(packet.has<lp::NextHopFaceIdField>());
@@ -176,15 +174,15 @@ BOOST_AUTO_TEST_CASE(Normal)
   Block netPacket;
   lp::Packet packet;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received1);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received1);
+  BOOST_TEST(!isComplete);
   BOOST_CHECK_EQUAL(reassembler.size(), 1);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received2);
+  BOOST_TEST(!isComplete);
   BOOST_CHECK_EQUAL(reassembler.size(), 1);
 
-  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment(0, received3);
+  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment({}, received3);
   BOOST_REQUIRE(isComplete);
   BOOST_CHECK(packet.has<lp::NextHopFaceIdField>());
   BOOST_CHECK_EQUAL_COLLECTIONS(data, data + sizeof(data), netPacket.begin(), netPacket.end());
@@ -219,13 +217,13 @@ BOOST_AUTO_TEST_CASE(OmitFragIndex0)
   Block netPacket;
   lp::Packet packet;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received1);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received1);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received2);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment(0, received3);
+  std::tie(isComplete, netPacket, packet) = reassembler.receiveFragment({}, received3);
   BOOST_REQUIRE(isComplete);
   BOOST_CHECK(packet.has<lp::NextHopFaceIdField>());
   BOOST_CHECK_EQUAL_COLLECTIONS(data, data + sizeof(data), netPacket.begin(), netPacket.end());
@@ -258,14 +256,14 @@ BOOST_AUTO_TEST_CASE(OutOfOrder)
 
   bool isComplete = false;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, frag2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, frag2);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, frag0);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, frag0);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, frag1);
-  BOOST_REQUIRE(isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, frag1);
+  BOOST_TEST(isComplete);
 }
 
 BOOST_AUTO_TEST_CASE(Duplicate)
@@ -280,11 +278,11 @@ BOOST_AUTO_TEST_CASE(Duplicate)
 
   bool isComplete = false;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, frag0);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, frag0);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(1, frag0);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, frag0);
+  BOOST_TEST(!isComplete);
 }
 
 BOOST_AUTO_TEST_CASE(Timeout)
@@ -305,21 +303,21 @@ BOOST_AUTO_TEST_CASE(Timeout)
   received2.add<lp::FragCountField>(2);
   received2.add<lp::SequenceField>(1001);
 
-  const EndpointId REMOTE_EP = 11028;
+  const EndpointId REMOTE_EP = ethernet::getDefaultMulticastAddress();
   bool isComplete = false;
   std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(REMOTE_EP, received1);
-  BOOST_REQUIRE(!isComplete);
+  BOOST_TEST(!isComplete);
   BOOST_CHECK_EQUAL(reassembler.size(), 1);
   BOOST_CHECK(timeoutHistory.empty());
 
   advanceClocks(1_ms, 600);
   BOOST_CHECK_EQUAL(reassembler.size(), 0);
   BOOST_REQUIRE_EQUAL(timeoutHistory.size(), 1);
-  BOOST_CHECK_EQUAL(std::get<0>(timeoutHistory.back()), REMOTE_EP);
+  BOOST_CHECK(std::get<0>(timeoutHistory.back()) == REMOTE_EP);
   BOOST_CHECK_EQUAL(std::get<1>(timeoutHistory.back()), 1);
 
   std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(REMOTE_EP, received2);
-  BOOST_REQUIRE(!isComplete);
+  BOOST_TEST(!isComplete);
 }
 
 BOOST_AUTO_TEST_CASE(MissingSequence)
@@ -348,19 +346,19 @@ BOOST_AUTO_TEST_CASE(MissingSequence)
 
   bool isComplete = false;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received1);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received1);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received2);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received3);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received3);
+  BOOST_TEST(!isComplete);
 
   advanceClocks(1_ms, 600);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received2);
+  BOOST_TEST(!isComplete);
 }
 
 BOOST_AUTO_TEST_CASE(FragCountOverLimit)
@@ -376,8 +374,8 @@ BOOST_AUTO_TEST_CASE(FragCountOverLimit)
 
   bool isComplete = false;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received1);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received1);
+  BOOST_TEST(!isComplete);
 }
 
 BOOST_AUTO_TEST_CASE(MissingFragCount)
@@ -407,14 +405,14 @@ BOOST_AUTO_TEST_CASE(MissingFragCount)
 
   bool isComplete = false;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received1);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received1);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received2);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received3);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received3);
+  BOOST_TEST(!isComplete);
 }
 
 BOOST_AUTO_TEST_CASE(OverFragCount)
@@ -448,14 +446,14 @@ BOOST_AUTO_TEST_CASE(OverFragCount)
 
   bool isComplete = false;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received1);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received1);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received2);
+  BOOST_TEST(!isComplete);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(0, received3);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment({}, received3);
+  BOOST_TEST(!isComplete);
 }
 
 BOOST_AUTO_TEST_SUITE_END() // MultiFragment
@@ -495,20 +493,23 @@ BOOST_AUTO_TEST_CASE(Normal)
 
   bool isComplete = false;
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(1, frag1_1);
-  BOOST_REQUIRE(!isComplete);
+  const EndpointId REMOTE_EP_1 = ethernet::Address::fromString("11:22:33:45:67:89");
+  const EndpointId REMOTE_EP_2 = ethernet::Address::fromString("11:22:33:ab:cd:ef");
+
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(REMOTE_EP_1, frag1_1);
+  BOOST_TEST(!isComplete);
   BOOST_CHECK_EQUAL(reassembler.size(), 1);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(2, frag2_2);
-  BOOST_REQUIRE(!isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(REMOTE_EP_2, frag2_2);
+  BOOST_TEST(!isComplete);
   BOOST_CHECK_EQUAL(reassembler.size(), 2);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(1, frag1_2);
-  BOOST_REQUIRE(isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(REMOTE_EP_1, frag1_2);
+  BOOST_TEST(isComplete);
   BOOST_CHECK_EQUAL(reassembler.size(), 1);
 
-  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(2, frag2_1);
-  BOOST_REQUIRE(isComplete);
+  std::tie(isComplete, std::ignore, std::ignore) = reassembler.receiveFragment(REMOTE_EP_2, frag2_1);
+  BOOST_TEST(isComplete);
   BOOST_CHECK_EQUAL(reassembler.size(), 0);
 }
 
@@ -517,6 +518,4 @@ BOOST_AUTO_TEST_SUITE_END() // MultipleRemoteEndpoints
 BOOST_AUTO_TEST_SUITE_END() // TestLpReassembler
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

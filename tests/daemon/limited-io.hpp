@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,10 +28,12 @@
 
 #include "tests/daemon/global-io-fixture.hpp"
 
-#include <exception>
+#include <ndn-cxx/util/scheduler.hpp>
 
-namespace nfd {
-namespace tests {
+#include <exception>
+#include <limits>
+
+namespace nfd::tests {
 
 /** \brief Provides IO operations limit and/or time limit for unit testing.
  *
@@ -55,27 +57,28 @@ public:
     EXCEPTION
   };
 
-  /** \brief g_io.run() with operation count and/or time limit
+  /** \brief `g_io.run()` with operation count and/or time limit.
    *  \param nOpsLimit operation count limit, pass UNLIMITED_OPS for no limit
    *  \param timeLimit time limit, pass UNLIMITED_TIME for no limit
    *  \param tick if this LimitedIo is constructed with GlobalIoTimeFixture,
    *              this is passed to .advanceClocks(), otherwise ignored
    */
-  StopReason
+  [[nodiscard]] StopReason
   run(int nOpsLimit, time::nanoseconds timeLimit, time::nanoseconds tick = 1_ms);
 
-  /// count an operation
+  /// Count an operation
   void
   afterOp();
 
-  /** \brief defer for specified duration
+  /**
+   * \brief Defer for the specified duration.
    *
-   *  equivalent to .run(UNLIMITED_OPS, d)
+   * Equivalent to run(UNLIMITED_OPS, d)
    */
   void
   defer(time::nanoseconds d)
   {
-    this->run(UNLIMITED_OPS, d);
+    std::ignore = run(UNLIMITED_OPS, d);
   }
 
   std::exception_ptr
@@ -85,7 +88,7 @@ public:
   }
 
 private:
-  /** \brief an exception to stop IO operation
+  /** \brief An exception to stop IO operation.
    */
   class StopException : public std::exception
   {
@@ -95,19 +98,18 @@ private:
   afterTimeout();
 
 public:
-  static const int UNLIMITED_OPS;
-  static const time::nanoseconds UNLIMITED_TIME;
+  static constexpr int UNLIMITED_OPS = std::numeric_limits<int>::max();
+  static constexpr time::nanoseconds UNLIMITED_TIME = time::nanoseconds::min();
 
 private:
   GlobalIoTimeFixture* m_fixture;
   StopReason m_reason;
   int m_nOpsRemaining = 0;
-  scheduler::EventId m_timeout;
+  ndn::scheduler::EventId m_timeout;
   std::exception_ptr m_lastException;
   bool m_isRunning = false;
 };
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_LIMITED_IO_HPP

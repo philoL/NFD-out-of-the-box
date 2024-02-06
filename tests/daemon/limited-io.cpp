@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,11 +29,7 @@
 
 #include <boost/exception/diagnostic_information.hpp>
 
-namespace nfd {
-namespace tests {
-
-const int LimitedIo::UNLIMITED_OPS = std::numeric_limits<int>::max();
-const time::nanoseconds LimitedIo::UNLIMITED_TIME = time::nanoseconds::min();
+namespace nfd::tests {
 
 LimitedIo::LimitedIo(GlobalIoTimeFixture* fixture)
   : m_fixture(fixture)
@@ -74,7 +70,7 @@ LimitedIo::run(int nOpsLimit, time::nanoseconds timeLimit, time::nanoseconds tic
     m_lastException = std::current_exception();
   }
 
-  getGlobalIoService().reset();
+  getGlobalIoService().restart();
   m_timeout.cancel();
   m_isRunning = false;
 
@@ -110,5 +106,4 @@ LimitedIo::afterTimeout()
   }
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

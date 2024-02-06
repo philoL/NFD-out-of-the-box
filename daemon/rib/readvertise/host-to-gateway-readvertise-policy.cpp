@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,11 +30,10 @@
 #include <ndn-cxx/security/pib/identity.hpp>
 #include <ndn-cxx/security/signing-helpers.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-static const name::Component IGNORE_COMPONENT("nrd");
-static const time::seconds DEFAULT_REFRESH_INTERVAL = 25_s;
+const name::Component IGNORE_COMPONENT{"nrd"};
+constexpr time::seconds DEFAULT_REFRESH_INTERVAL = 25_s;
 
 HostToGatewayReadvertisePolicy::HostToGatewayReadvertisePolicy(const ndn::KeyChain& keyChain,
                                                                const ConfigSection& section)
@@ -44,13 +43,13 @@ HostToGatewayReadvertisePolicy::HostToGatewayReadvertisePolicy(const ndn::KeyCha
   m_refreshInterval = interval ? time::seconds(*interval) : DEFAULT_REFRESH_INTERVAL;
 }
 
-optional<ReadvertiseAction>
+std::optional<ReadvertiseAction>
 HostToGatewayReadvertisePolicy::handleNewRoute(const RibRouteRef& ribRoute) const
 {
   auto ribEntryName = ribRoute.entry->getName();
   if (scope_prefix::LOCALHOST.isPrefixOf(ribEntryName) ||
       ribEntryName == RibManager::LOCALHOP_TOP_PREFIX) {
-    return nullopt;
+    return std::nullopt;
   }
 
   // find out the shortest identity whose name is a prefix of the RIB entry name
@@ -73,12 +72,10 @@ HostToGatewayReadvertisePolicy::handleNewRoute(const RibRouteRef& ribRoute) cons
     }
   }
 
-  if (isFound) {
-    return ReadvertiseAction{prefixToAdvertise, ndn::security::signingByIdentity(signingIdentity)};
+  if (!isFound) {
+    return std::nullopt;
   }
-  else {
-    return nullopt;
-  }
+  return ReadvertiseAction{prefixToAdvertise, ndn::security::signingByIdentity(signingIdentity)};
 }
 
 time::milliseconds
@@ -87,5 +84,4 @@ HostToGatewayReadvertisePolicy::getRefreshInterval() const
   return m_refreshInterval;
 }
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib

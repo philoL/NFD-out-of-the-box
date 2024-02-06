@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,12 +29,10 @@
 
 #include <pcap/pcap.h>
 
-#include <cstring> // for memcpy()
-
+#include <boost/asio/defer.hpp>
 #include <boost/endian/conversion.hpp>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(EthernetTransport);
 
@@ -45,10 +43,6 @@ EthernetTransport::EthernetTransport(const ndn::net::NetworkInterface& localEndp
   , m_srcAddress(localEndpoint.getEthernetAddress())
   , m_destAddress(remoteEndpoint)
   , m_interfaceName(localEndpoint.getName())
-  , m_hasRecentlyReceived(false)
-#ifdef _DEBUG
-  , m_nDropped(0)
-#endif
 {
   try {
     m_pcap.activate(DLT_EN10MB);
@@ -58,9 +52,17 @@ EthernetTransport::EthernetTransport(const ndn::net::NetworkInterface& localEndp
     NDN_THROW_NESTED(Error(e.what()));
   }
 
-  m_netifStateConn = localEndpoint.onStateChanged.connect(
-    [=] (ndn::net::InterfaceState, ndn::net::InterfaceState newState) {
+  // Set initial transport state based upon the state of the underlying NetworkInterface
+  handleNetifStateChange(localEndpoint.getState());
+
+  m_netifStateChangedConn = localEndpoint.onStateChanged.connect(
+    [this] (ndn::net::InterfaceState, ndn::net::InterfaceState newState) {
       handleNetifStateChange(newState);
+    });
+
+  m_netifMtuChangedConn = localEndpoint.onMtuChanged.connect(
+    [this] (uint32_t, uint32_t mtu) {
+      setMtu(mtu);
     });
 
   asyncRead();
@@ -82,7 +84,7 @@ EthernetTransport::doClose()
 
   // Ensure that the Transport stays alive at least
   // until all pending handlers are dispatched
-  getGlobalIoService().post([this] {
+  boost::asio::defer(getGlobalIoService(), [this] {
     this->setState(TransportState::CLOSED);
   });
 }
@@ -102,7 +104,7 @@ EthernetTransport::handleNetifStateChange(ndn::net::InterfaceState netifState)
 }
 
 void
-EthernetTransport::doSend(const Block& packet, const EndpointId&)
+EthernetTransport::doSend(const Block& packet)
 {
   NFD_LOG_FACE_TRACE(__func__);
 
@@ -117,22 +119,22 @@ EthernetTransport::sendPacket(const ndn::Block& block)
   // pad with zeroes if the payload is too short
   if (block.size() < ethernet::MIN_DATA_LEN) {
     static const uint8_t padding[ethernet::MIN_DATA_LEN] = {};
-    buffer.appendByteArray(padding, ethernet::MIN_DATA_LEN - block.size());
+    buffer.appendBytes(ndn::make_span(padding).subspan(block.size()));
   }
 
   // construct and prepend the ethernet header
   uint16_t ethertype = boost::endian::native_to_big(ethernet::ETHERTYPE_NDN);
-  buffer.prependByteArray(reinterpret_cast<const uint8_t*>(&ethertype), ethernet::TYPE_LEN);
-  buffer.prependByteArray(m_srcAddress.data(), m_srcAddress.size());
-  buffer.prependByteArray(m_destAddress.data(), m_destAddress.size());
+  buffer.prependBytes({reinterpret_cast<const uint8_t*>(&ethertype), ethernet::TYPE_LEN});
+  buffer.prependBytes(m_srcAddress);
+  buffer.prependBytes(m_destAddress);
 
   // send the frame
-  int sent = pcap_inject(m_pcap, buffer.buf(), buffer.size());
+  int sent = pcap_inject(m_pcap, buffer.data(), buffer.size());
   if (sent < 0)
     handleError("Send operation failed: " + m_pcap.getLastError());
   else if (static_cast<size_t>(sent) < buffer.size())
-    handleError("Failed to send the full frame: size=" + to_string(buffer.size()) +
-                " sent=" + to_string(sent));
+    handleError("Failed to send the full frame: size=" + std::to_string(buffer.size()) +
+                " sent=" + std::to_string(sent));
   else
     // print block size because we don't want to count the padding in buffer
     NFD_LOG_FACE_TRACE("Successfully sent: " << block.size() << " bytes");
@@ -141,8 +143,8 @@ EthernetTransport::sendPacket(const ndn::Block& block)
 void
 EthernetTransport::asyncRead()
 {
-  m_socket.async_read_some(boost::asio::null_buffers(),
-                           [this] (const auto& e, auto) { this->handleRead(e); });
+  m_socket.async_wait(boost::asio::posix::stream_descriptor::wait_read,
+                      [this] (const auto& e) { this->handleRead(e); });
 }
 
 void
@@ -160,30 +162,24 @@ EthernetTransport::handleRead(const boost::system::error_code& error)
     return;
   }
 
-  const uint8_t* pkt;
-  size_t len;
-  std::string err;
-  std::tie(pkt, len, err) = m_pcap.readNextPacket();
-
-  if (pkt == nullptr) {
-    NFD_LOG_FACE_WARN("Read error: " << err);
+  auto [pkt, readErr] = m_pcap.readNextPacket();
+  if (pkt.empty()) {
+    NFD_LOG_FACE_DEBUG("Read error: " << readErr);
   }
   else {
-    const ether_header* eh;
-    std::tie(eh, err) = ethernet::checkFrameHeader(pkt, len, m_srcAddress,
-                                                   m_destAddress.isMulticast() ? m_destAddress : m_srcAddress);
+    auto [eh, frameErr] = ethernet::checkFrameHeader(pkt, m_srcAddress,
+                                                     m_destAddress.isMulticast() ? m_destAddress : m_srcAddress);
     if (eh == nullptr) {
-      NFD_LOG_FACE_WARN(err);
+      NFD_LOG_FACE_WARN(frameErr);
     }
     else {
       ethernet::Address sender(eh->ether_shost);
-      pkt += ethernet::HDR_LEN;
-      len -= ethernet::HDR_LEN;
-      receivePayload(pkt, len, sender);
+      pkt = pkt.subspan(ethernet::HDR_LEN);
+      receivePayload(pkt, sender);
     }
   }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
   size_t nDropped = m_pcap.getNDropped();
   if (nDropped - m_nDropped > 0)
     NFD_LOG_FACE_DEBUG("Detected " << nDropped - m_nDropped << " dropped frame(s)");
@@ -194,14 +190,11 @@ EthernetTransport::handleRead(const boost::system::error_code& error)
 }
 
 void
-EthernetTransport::receivePayload(const uint8_t* payload, size_t length,
-                                  const ethernet::Address& sender)
+EthernetTransport::receivePayload(span<const uint8_t> payload, const ethernet::Address& sender)
 {
-  NFD_LOG_FACE_TRACE("Received: " << length << " bytes from " << sender);
+  NFD_LOG_FACE_TRACE("Received: " << payload.size() << " bytes from " << sender);
 
-  bool isOk = false;
-  Block element;
-  std::tie(isOk, element) = Block::fromBuffer(payload, length);
+  auto [isOk, element] = Block::fromBuffer(payload);
   if (!isOk) {
     NFD_LOG_FACE_WARN("Failed to parse incoming packet from " << sender);
     // This packet won't extend the face lifetime
@@ -209,13 +202,7 @@ EthernetTransport::receivePayload(const uint8_t* payload, size_t length,
   }
   m_hasRecentlyReceived = true;
 
-  static_assert(sizeof(EndpointId) >= ethernet::ADDR_LEN, "EndpointId is too small");
-  EndpointId endpoint = 0;
-  if (m_destAddress.isMulticast()) {
-    std::memcpy(&endpoint, sender.data(), sender.size());
-  }
-
-  this->receive(element, endpoint);
+  this->receive(element, m_destAddress.isMulticast() ? sender : EndpointId{});
 }
 
 void
@@ -231,5 +218,4 @@ EthernetTransport::handleError(const std::string& errorMessage)
   doClose();
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

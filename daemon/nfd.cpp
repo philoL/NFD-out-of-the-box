@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -45,7 +45,7 @@ namespace nfd {
 
 NFD_LOG_INIT(Nfd);
 
-const std::string INTERNAL_CONFIG("internal://nfd.conf");
+const std::string INTERNAL_CONFIG{"internal://nfd.conf"};
 
 Nfd::Nfd(ndn::KeyChain& keyChain)
   : m_keyChain(keyChain)
@@ -150,6 +150,8 @@ Nfd::initializeManagement()
   ConfigFile config(&ignoreRibAndLogSections);
   general::setConfigFile(config);
 
+  m_forwarder->setConfigFile(config);
+
   TablesConfigSection tablesConfig(*m_forwarder);
   tablesConfig.setConfigFile(config);
 
@@ -182,6 +184,8 @@ Nfd::reloadConfigFile()
 
   ConfigFile config(&ignoreRibAndLogSections);
   general::setConfigFile(config);
+
+  m_forwarder->setConfigFile(config);
 
   TablesConfigSection tablesConfig(*m_forwarder);
   tablesConfig.setConfigFile(config);

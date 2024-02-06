@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,18 +27,14 @@
 #define NFD_DAEMON_FW_MULTICAST_STRATEGY_HPP
 
 #include "strategy.hpp"
-#include "process-nack-traits.hpp"
 #include "retx-suppression-exponential.hpp"
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
-/** \brief a forwarding strategy that forwards Interest to all FIB nexthops
- *
- *  \note This strategy is not EndpointId-aware.
+/**
+ * \brief A forwarding strategy that forwards Interests to all FIB nexthops.
  */
 class MulticastStrategy : public Strategy
-                        , public ProcessNackTraits<MulticastStrategy>
 {
 public:
   explicit
@@ -47,24 +43,18 @@ public:
   static const Name&
   getStrategyName();
 
+public: // triggers
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
-                   const shared_ptr<pit::Entry>& pitEntry) override;
+  afterNewNextHop(const fib::NextHop& nextHop, const shared_ptr<pit::Entry>& pitEntry) override;
 
-private:
-  friend ProcessNackTraits<MulticastStrategy>;
-  RetxSuppressionExponential m_retxSuppression;
-
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
-  static const time::milliseconds RETX_SUPPRESSION_INITIAL;
-  static const time::milliseconds RETX_SUPPRESSION_MAX;
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+  std::unique_ptr<RetxSuppressionExponential> m_retxSuppression;
 };
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
 #endif // NFD_DAEMON_FW_MULTICAST_STRATEGY_HPP

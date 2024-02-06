@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,8 +30,7 @@
 #include <boost/range/adaptors.hpp>
 #include <boost/range/algorithm/copy.hpp>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(EthernetFactory);
 NFD_REGISTER_PROTOCOL_FACTORY(EthernetFactory);
@@ -47,8 +46,8 @@ EthernetFactory::EthernetFactory(const CtorParams& params)
   : ProtocolFactory(params)
 {
   m_netifAddConn = netmon->onInterfaceAdded.connect([this] (const auto& netif) {
-    this->applyUnicastConfigToNetif(netif);
-    this->applyMcastConfigToNetif(*netif);
+    applyUnicastConfigToNetif(netif);
+    applyMcastConfigToNetif(*netif);
   });
 }
 
@@ -157,11 +156,11 @@ EthernetFactory::doProcessConfig(OptionalConfigSection configSection,
     }
   }
 
-  // Even if there's no configuration change, we still need to re-apply configuration because
-  // netifs may have changed.
-  m_unicastConfig = unicastConfig;
-  m_mcastConfig = mcastConfig;
-  this->applyConfig(context);
+  // Even if there are no configuration changes, we still need to re-apply
+  // the configuration because netifs may have changed.
+  m_unicastConfig = std::move(unicastConfig);
+  m_mcastConfig = std::move(mcastConfig);
+  applyConfig(context);
 }
 
 void
@@ -170,13 +169,13 @@ EthernetFactory::doCreateFace(const CreateFaceRequest& req,
                               const FaceCreationFailedCallback& onFailure)
 {
   if (!req.localUri || req.localUri->getScheme() != "dev") {
-    NFD_LOG_TRACE("Cannot create unicast Ethernet face without dev:// LocalUri");
+    NFD_LOG_TRACE("createFace: dev:// LocalUri required");
     onFailure(406, "Creation of unicast Ethernet faces requires a LocalUri with dev:// scheme");
     return;
   }
 
   if (req.params.persistency == ndn::nfd::FACE_PERSISTENCY_ON_DEMAND) {
-    NFD_LOG_TRACE("createFace does not support FACE_PERSISTENCY_ON_DEMAND");
+    NFD_LOG_TRACE("createFace: unsupported FacePersistency");
     onFailure(406, "Outgoing Ethernet faces do not support on-demand persistency");
     return;
   }
@@ -185,22 +184,22 @@ EthernetFactory::doCreateFace(const CreateFaceRequest& req,
   std::string localEndpoint(req.localUri->getHost());
 
   if (remoteEndpoint.isMulticast()) {
-    NFD_LOG_TRACE("createFace does not support multicast faces");
+    NFD_LOG_TRACE("createFace: unsupported multicast endpoint");
     onFailure(406, "Cannot create multicast Ethernet faces");
     return;
   }
 
   if (req.params.wantLocalFields) {
     // Ethernet faces are never local
-    NFD_LOG_TRACE("createFace cannot create non-local face with local fields enabled");
+    NFD_LOG_TRACE("createFace: cannot create non-local face with local fields enabled");
     onFailure(406, "Local fields can only be enabled on faces with local scope");
     return;
   }
 
-  if (req.params.mtu && *req.params.mtu < Transport::MIN_MTU) {
+  if (req.params.mtu && *req.params.mtu < MIN_MTU) {
     // The specified MTU must be greater than the minimum possible
-    NFD_LOG_TRACE("createFace cannot create a face with an MTU less than " << Transport::MIN_MTU);
-    onFailure(406, "MTU cannot be less than " + to_string(Transport::MIN_MTU));
+    NFD_LOG_TRACE("createFace: override MTU cannot be less than " << MIN_MTU);
+    onFailure(406, "Override MTU cannot be less than " + std::to_string(MIN_MTU));
     return;
   }
 
@@ -240,7 +239,7 @@ EthernetFactory::createMulticastFace(const ndn::net::NetworkInterface& netif,
 {
   BOOST_ASSERT(address.isMulticast());
 
-  auto key = std::make_pair(netif.getName(), address);
+  std::pair key(netif.getName(), address);
   auto found = m_mcastFaces.find(key);
   if (found != m_mcastFaces.end()) {
     return found->second;
@@ -257,6 +256,11 @@ EthernetFactory::createMulticastFace(const ndn::net::NetworkInterface& netif,
   m_mcastFaces[key] = face;
   connectFaceClosedSignal(*face, [this, key] { m_mcastFaces.erase(key); });
 
+  auto channelIt = m_channels.find(netif.getName());
+  if (channelIt != m_channels.end()) {
+    face->setChannel(channelIt->second);
+  }
+
   return face;
 }
 
@@ -267,13 +271,13 @@ EthernetFactory::applyUnicastConfigToNetif(const shared_ptr<const ndn::net::Netw
     return nullptr;
   }
 
-  if (netif->getType() != ndn::net::InterfaceType::ETHERNET) {
-    NFD_LOG_DEBUG("Not creating channel on " << netif->getName() << ": incompatible netif type");
+  if (!netif->isUp()) {
+    NFD_LOG_DEBUG("Not creating channel on " << netif->getName() << ": netif is down");
     return nullptr;
   }
 
-  if (!netif->isUp()) {
-    NFD_LOG_DEBUG("Not creating channel on " << netif->getName() << ": netif is down");
+  if (netif->getType() != ndn::net::InterfaceType::ETHERNET) {
+    NFD_LOG_DEBUG("Not creating channel on " << netif->getName() << ": incompatible netif type");
     return nullptr;
   }
 
@@ -301,23 +305,23 @@ EthernetFactory::applyMcastConfigToNetif(const ndn::net::NetworkInterface& netif
     return nullptr;
   }
 
-  if (netif.getType() != ndn::net::InterfaceType::ETHERNET) {
-    NFD_LOG_DEBUG("Not creating multicast face on " << netif.getName() << ": incompatible netif type");
-    return nullptr;
-  }
-
   if (!netif.isUp()) {
     NFD_LOG_DEBUG("Not creating multicast face on " << netif.getName() << ": netif is down");
     return nullptr;
   }
 
-  if (!netif.canMulticast()) {
-    NFD_LOG_DEBUG("Not creating multicast face on " << netif.getName() << ": netif cannot multicast");
+  if (netif.getType() != ndn::net::InterfaceType::ETHERNET) {
+    NFD_LOG_DEBUG("Not creating multicast face on " << netif.getName() << ": incompatible netif type");
     return nullptr;
   }
 
   if (netif.getEthernetAddress().isNull()) {
     NFD_LOG_DEBUG("Not creating multicast face on " << netif.getName() << ": invalid Ethernet address");
+    return nullptr;
+  }
+
+  if (!netif.canMulticast()) {
+    NFD_LOG_DEBUG("Not creating multicast face on " << netif.getName() << ": netif cannot multicast");
     return nullptr;
   }
 
@@ -329,17 +333,18 @@ EthernetFactory::applyMcastConfigToNetif(const ndn::net::NetworkInterface& netif
   NFD_LOG_DEBUG("Creating multicast face on " << netif.getName());
   shared_ptr<Face> face;
   try {
-    face = this->createMulticastFace(netif, m_mcastConfig.group);
+    face = createMulticastFace(netif, m_mcastConfig.group);
   }
-  catch (const EthernetTransport::Error& e) {
+  catch (const std::runtime_error& e) {
     NFD_LOG_WARN("Cannot create multicast face on " << netif.getName() << ": " << e.what());
-    return nullptr;
+    return nullptr; // not a fatal error
   }
 
-  if (face->getId() == face::INVALID_FACEID) {
+  if (face->getId() == INVALID_FACEID) {
     // new face: register with forwarding
     this->addFace(face);
   }
+
   return face;
 }
 
@@ -359,9 +364,9 @@ EthernetFactory::applyConfig(const FaceSystem::ConfigContext&)
 
   // create channels and multicast faces if requested by config
   for (const auto& netif : netmon->listNetworkInterfaces()) {
-    this->applyUnicastConfigToNetif(netif);
+    applyUnicastConfigToNetif(netif);
 
-    auto face = this->applyMcastConfigToNetif(*netif);
+    auto face = applyMcastConfigToNetif(*netif);
     if (face != nullptr) {
       // don't destroy face
       oldFaces.erase(face);
@@ -374,5 +379,4 @@ EthernetFactory::applyConfig(const FaceSystem::ConfigContext&)
   }
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

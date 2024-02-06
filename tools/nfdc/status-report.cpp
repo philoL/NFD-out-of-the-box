@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,21 +26,7 @@
 #include "status-report.hpp"
 #include "format-helpers.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-
-ReportFormat
-parseReportFormat(const std::string& s)
-{
-  if (s == "xml") {
-    return ReportFormat::XML;
-  }
-  if (s == "text") {
-    return ReportFormat::TEXT;
-  }
-  NDN_THROW(std::invalid_argument("unrecognized ReportFormat '" + s + "'"));
-}
+namespace nfd::tools::nfdc {
 
 std::ostream&
 operator<<(std::ostream& os, ReportFormat fmt)
@@ -55,9 +41,10 @@ operator<<(std::ostream& os, ReportFormat fmt)
 }
 
 uint32_t
-StatusReport::collect(Face& face, KeyChain& keyChain, Validator& validator, const CommandOptions& options)
+StatusReport::collect(ndn::Face& face, ndn::KeyChain& keyChain, ndn::security::Validator& validator,
+                      const CommandOptions& options)
 {
-  Controller controller(face, keyChain, validator);
+  ndn::nfd::Controller controller(face, keyChain, validator);
   uint32_t errorCode = 0;
 
   for (size_t i = 0; i < sections.size(); ++i) {
@@ -76,7 +63,7 @@ StatusReport::collect(Face& face, KeyChain& keyChain, Validator& validator, cons
 }
 
 void
-StatusReport::processEvents(Face& face)
+StatusReport::processEvents(ndn::Face& face)
 {
   face.processEvents();
 }
@@ -99,6 +86,4 @@ StatusReport::formatText(std::ostream& os) const
   }
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

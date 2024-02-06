@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,94 +27,85 @@
 #include "algorithm.hpp"
 #include "common/logger.hpp"
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
 NFD_REGISTER_STRATEGY(MulticastStrategy);
 
 NFD_LOG_INIT(MulticastStrategy);
 
-const time::milliseconds MulticastStrategy::RETX_SUPPRESSION_INITIAL(10);
-const time::milliseconds MulticastStrategy::RETX_SUPPRESSION_MAX(250);
-
 MulticastStrategy::MulticastStrategy(Forwarder& forwarder, const Name& name)
   : Strategy(forwarder)
-  , ProcessNackTraits(this)
-  , m_retxSuppression(RETX_SUPPRESSION_INITIAL,
-                      RetxSuppressionExponential::DEFAULT_MULTIPLIER,
-                      RETX_SUPPRESSION_MAX)
 {
   ParsedInstanceName parsed = parseInstanceName(name);
-  if (!parsed.parameters.empty()) {
-    NDN_THROW(std::invalid_argument("MulticastStrategy does not accept parameters"));
-  }
   if (parsed.version && *parsed.version != getStrategyName()[-1].toVersion()) {
-    NDN_THROW(std::invalid_argument(
-      "MulticastStrategy does not support version " + to_string(*parsed.version)));
+    NDN_THROW(std::invalid_argument("MulticastStrategy does not support version " +
+                                    std::to_string(*parsed.version)));
   }
+
+  StrategyParameters params = parseParameters(parsed.parameters);
+  m_retxSuppression = RetxSuppressionExponential::construct(params);
+
   this->setInstanceName(makeInstanceName(name, getStrategyName()));
+
+  NDN_LOG_DEBUG(*m_retxSuppression);
 }
 
 const Name&
 MulticastStrategy::getStrategyName()
 {
-  static Name strategyName("/localhost/nfd/strategy/multicast/%FD%03");
+  static const auto strategyName = Name("/localhost/nfd/strategy/multicast").appendVersion(4);
   return strategyName;
 }
 
 void
-MulticastStrategy::afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+MulticastStrategy::afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                                         const shared_ptr<pit::Entry>& pitEntry)
 {
   const fib::Entry& fibEntry = this->lookupFib(*pitEntry);
   const fib::NextHopList& nexthops = fibEntry.getNextHops();
 
-  int nEligibleNextHops = 0;
-
-  bool isSuppressed = false;
-
   for (const auto& nexthop : nexthops) {
     Face& outFace = nexthop.getFace();
 
-    RetxSuppressionResult suppressResult = m_retxSuppression.decidePerUpstream(*pitEntry, outFace);
-
+    auto suppressResult = m_retxSuppression->decidePerUpstream(*pitEntry, outFace);
     if (suppressResult == RetxSuppressionResult::SUPPRESS) {
-      NFD_LOG_DEBUG(interest << " from=" << ingress << " to=" << outFace.getId() << " suppressed");
-      isSuppressed = true;
+      NFD_LOG_INTEREST_FROM(interest, ingress, "to=" << outFace.getId() << " suppressed");
       continue;
     }
 
-    if ((outFace.getId() == ingress.face.getId() && outFace.getLinkType() != ndn::nfd::LINK_TYPE_AD_HOC) ||
-        wouldViolateScope(ingress.face, interest, outFace)) {
+    if (!isNextHopEligible(ingress.face, interest, nexthop, pitEntry)) {
       continue;
     }
 
-    this->sendInterest(pitEntry, FaceEndpoint(outFace, 0), interest);
-    NFD_LOG_DEBUG(interest << " from=" << ingress << " pitEntry-to=" << outFace.getId());
-
-    if (suppressResult == RetxSuppressionResult::FORWARD) {
-      m_retxSuppression.incrementIntervalForOutRecord(*pitEntry->getOutRecord(outFace));
+    NFD_LOG_INTEREST_FROM(interest, ingress, "to=" << outFace.getId());
+    auto* sentOutRecord = this->sendInterest(interest, outFace, pitEntry);
+    if (sentOutRecord && suppressResult == RetxSuppressionResult::FORWARD) {
+      m_retxSuppression->incrementIntervalForOutRecord(*sentOutRecord);
     }
-    ++nEligibleNextHops;
-  }
-
-  if (nEligibleNextHops == 0 && !isSuppressed) {
-    NFD_LOG_DEBUG(interest << " from=" << ingress << " noNextHop");
-
-    lp::NackHeader nackHeader;
-    nackHeader.setReason(lp::NackReason::NO_ROUTE);
-    this->sendNack(pitEntry, ingress, nackHeader);
-
-    this->rejectPendingInterest(pitEntry);
   }
 }
 
 void
-MulticastStrategy::afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
-                                    const shared_ptr<pit::Entry>& pitEntry)
+MulticastStrategy::afterNewNextHop(const fib::NextHop& nextHop,
+                                   const shared_ptr<pit::Entry>& pitEntry)
 {
-  this->processNack(ingress.face, nack, pitEntry);
+  // no need to check for suppression, as it is a new next hop
+
+  auto nextHopFaceId = nextHop.getFace().getId();
+  const auto& interest = pitEntry->getInterest();
+
+  // try to find an incoming face record that doesn't violate scope restrictions
+  for (const auto& r : pitEntry->getInRecords()) {
+    auto& inFace = r.getFace();
+
+    if (isNextHopEligible(inFace, interest, nextHop, pitEntry)) {
+      NFD_LOG_INTEREST_FROM(interest, inFace.getId(), "new-nexthop to=" << nextHopFaceId);
+      this->sendInterest(interest, nextHop.getFace(), pitEntry);
+      break; // just one eligible incoming face record is enough
+    }
+  }
+
+  // if nothing found, the interest will not be forwarded
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

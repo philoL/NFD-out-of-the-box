@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,8 +27,7 @@
 #include "common/city-hash.hpp"
 #include "common/logger.hpp"
 
-namespace nfd {
-namespace name_tree {
+namespace nfd::name_tree {
 
 NFD_LOG_INIT(NameTreeHashtable);
 
@@ -52,9 +51,10 @@ public:
   }
 };
 
-/** \brief a type with compute static method to compute hash value from a raw buffer
+/**
+ * \brief A type with a `compute()` static method to compute the hash value from a raw buffer
  */
-using HashFunc = std::conditional<(sizeof(HashValue) > 4), Hash64, Hash32>::type;
+using HashFunc = std::conditional_t<(sizeof(HashValue) > 4), Hash64, Hash32>;
 
 HashValue
 computeHash(const Name& name, size_t prefixLen)
@@ -64,7 +64,7 @@ computeHash(const Name& name, size_t prefixLen)
   HashValue h = 0;
   for (size_t i = 0, last = std::min(prefixLen, name.size()); i < last; ++i) {
     const name::Component& comp = name[i];
-    h ^= HashFunc::compute(comp.wire(), comp.size());
+    h ^= HashFunc::compute(comp.data(), comp.size());
   }
   return h;
 }
@@ -83,7 +83,7 @@ computeHashes(const Name& name, size_t prefixLen)
 
   for (size_t i = 0; i < last; ++i) {
     const name::Component& comp = name[i];
-    h ^= HashFunc::compute(comp.wire(), comp.size());
+    h ^= HashFunc::compute(comp.data(), comp.size());
     seq.push_back(h);
   }
   return seq;
@@ -277,5 +277,4 @@ Hashtable::resize(size_t newNBuckets)
   this->computeThresholds();
 }
 
-} // namespace name_tree
-} // namespace nfd
+} // namespace nfd::name_tree

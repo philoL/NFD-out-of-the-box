@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,15 +31,14 @@
 
 #include <ndn-cxx/security/validator-null.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+#include <boost/test/tools/output_test_stream.hpp>
+
+namespace nfd::tools::nfdc::tests {
 
 using ndn::Face;
 using ndn::KeyChain;
-using ndn::security::v2::Validator;
-using ndn::security::v2::ValidatorNull;
+using ndn::security::Validator;
+using ndn::security::ValidatorNull;
 using boost::test_tools::output_test_stream;
 
 class MakeValidatorNull
@@ -52,8 +51,8 @@ public:
   }
 };
 
-/** \brief fixture to test status fetching routines in a \p Module
- *  \tparam M a subclass of \p Module
+/** \brief Fixture to test status fetching routines in a Module.
+ *  \tparam M a subclass of Module
  *  \tparam MakeValidator a callable to make a Validator for use in \p controller;
  *                        MakeValidator()(Face&, KeyChain&) should return a unique_ptr
  *                        to Validator or its subclass
@@ -62,7 +61,7 @@ template<typename M, typename MakeValidator = MakeValidatorNull>
 class StatusFixture : public MockNfdMgmtFixture
 {
 protected:
-  using ValidatorUniquePtr = typename std::result_of<MakeValidator(Face&, KeyChain&)>::type;
+  using ValidatorUniquePtr = std::invoke_result_t<MakeValidator, Face&, KeyChain&>;
 
   StatusFixture()
     : validator(MakeValidator()(face, m_keyChain))
@@ -72,7 +71,7 @@ protected:
   }
 
 protected: // status fetching
-  /** \brief start fetching status
+  /** \brief Start fetching status.
    *
    *  A test case should call \p fetchStatus, \p sendDataset, and \p prepareStatusOutput
    *  in this order, and then check \p statusXml and \p statusText contain the correct outputs.
@@ -91,7 +90,7 @@ protected: // status fetching
     this->advanceClocks(1_ms);
   }
 
-  /** \brief prepare status output as XML and text
+  /** \brief Prepare status output as XML and text.
    *  \pre sendDataset has been invoked
    */
   void
@@ -108,7 +107,7 @@ protected: // status fetching
 
 protected:
   ValidatorUniquePtr validator;
-  Controller controller;
+  ndn::nfd::Controller controller;
 
   M module;
 
@@ -117,7 +116,7 @@ protected:
   output_test_stream statusText;
 };
 
-/** \brief strips leading spaces on every line in expected XML
+/** \brief Strips leading spaces on every line in expected XML.
  *
  *  This allows expected XML to be written as:
  *  \code
@@ -150,9 +149,6 @@ stripXmlSpaces(const std::string& xml)
   return s;
 }
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests
 
 #endif // NFD_TESTS_TOOLS_NFDC_STATUS_FIXTURE_HPP

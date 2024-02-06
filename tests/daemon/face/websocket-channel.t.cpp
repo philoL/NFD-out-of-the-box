@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,31 +28,25 @@
 
 #include "test-ip.hpp"
 
-#include <boost/mpl/vector.hpp>
+#include <boost/mp11/list.hpp>
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_FIXTURE_TEST_SUITE(TestWebSocketChannel, WebSocketChannelFixture)
 
-using AddressFamilies = boost::mpl::vector<
-  std::integral_constant<AddressFamily, AddressFamily::V4>,
-  std::integral_constant<AddressFamily, AddressFamily::V6>>;
+using AddressFamilies = boost::mp11::mp_list_c<AddressFamily, AddressFamily::V4, AddressFamily::V6>;
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(Uri, F, AddressFamilies)
 {
-  using Address = typename IpAddressFromFamily<F::value>::type;
-  websocket::Endpoint ep(Address::loopback(), 20070);
+  websocket::Endpoint ep(IpAddressTypeFromFamily<F::value>::loopback(), 20070);
   auto channel = this->makeChannel(ep.address(), ep.port());
   BOOST_CHECK_EQUAL(channel->getUri(), FaceUri(ep, "ws"));
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(Listen, F, AddressFamilies)
 {
-  using Address = typename IpAddressFromFamily<F::value>::type;
-  auto channel = this->makeChannel(Address());
+  auto channel = this->makeChannel(IpAddressTypeFromFamily<F::value>());
   BOOST_CHECK_EQUAL(channel->isListening(), false);
 
   channel->listen(nullptr);
@@ -88,9 +82,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(MultipleAccepts, F, AddressFamilies)
                                   2_s), LimitedIo::EXCEED_OPS);
   BOOST_CHECK_EQUAL(listenerChannel->size(), 3);
 
-  // check face persistency
+  // check face persistency and channel association
   for (const auto& face : listenerFaces) {
     BOOST_CHECK_EQUAL(face->getPersistency(), ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
+    BOOST_CHECK_EQUAL(face->getChannel().lock(), listenerChannel);
   }
 }
 
@@ -152,6 +147,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(FaceClosure, F, AddressFamilies)
   SKIP_IF_IP_UNAVAILABLE(address);
   this->initialize(address);
 
+  BOOST_CHECK_EQUAL(listenerFaces.at(0)->getChannel().lock(), listenerChannel);
+
   listenerFaces.at(0)->close();
   BOOST_CHECK_EQUAL(listenerChannel->size(), 0);
 }
@@ -172,13 +169,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(SetPingInterval, F, AddressFamilies)
 {
   auto address = getTestIp(F::value, AddressScope::Loopback);
   SKIP_IF_IP_UNAVAILABLE(address);
-  const auto pingInterval = 1200_ms;
+  const auto pingInterval = 1500_ms;
   this->initialize(address, pingInterval);
 
-  BOOST_CHECK_EQUAL(limitedIo.run(2, // clientHandlePing
-                                  pingInterval * 3), LimitedIo::EXCEED_OPS);
-  BOOST_CHECK_LE(measuredPingInterval, pingInterval * 1.1);
-  BOOST_CHECK_GE(measuredPingInterval, pingInterval * 0.9);
+  BOOST_CHECK_EQUAL(limitedIo.run(5, // clientHandlePing
+                                  5 * pingInterval + 1_s), LimitedIo::EXCEED_OPS);
+  BOOST_CHECK_EQUAL(measuredPingIntervals.size(), 4);
+
+  auto avgPingInterval = std::accumulate(measuredPingIntervals.begin(), measuredPingIntervals.end(), 0_ns);
+  avgPingInterval /= measuredPingIntervals.size();
+  BOOST_CHECK_LE(avgPingInterval, pingInterval * 1.1);
+  BOOST_CHECK_GE(avgPingInterval, pingInterval * 0.9);
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(SetPongTimeOut, F, AddressFamilies)
@@ -192,9 +193,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(SetPongTimeOut, F, AddressFamilies)
                                   2_s), LimitedIo::EXCEED_OPS);
   BOOST_CHECK_EQUAL(listenerChannel->size(), 0);
 
-  auto transport = static_cast<WebSocketTransport*>(listenerFaces.at(0)->getTransport());
-  BOOST_CHECK(transport->getState() == TransportState::FAILED ||
-              transport->getState() == TransportState::CLOSED);
+  auto transport = static_cast<face::WebSocketTransport*>(listenerFaces.at(0)->getTransport());
+  BOOST_CHECK(transport->getState() == face::TransportState::FAILED ||
+              transport->getState() == face::TransportState::CLOSED);
   BOOST_CHECK_GE(transport->getCounters().nOutPings, 1);
   BOOST_CHECK_LE(transport->getCounters().nOutPings, 2);
   BOOST_CHECK_EQUAL(transport->getCounters().nInPongs, 0);
@@ -203,6 +204,4 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(SetPongTimeOut, F, AddressFamilies)
 BOOST_AUTO_TEST_SUITE_END() // TestWebSocketChannel
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

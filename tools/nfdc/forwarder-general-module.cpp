@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,16 +26,15 @@
 #include "forwarder-general-module.hpp"
 #include "format-helpers.hpp"
 
+#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
 #include <ndn-cxx/util/indented-stream.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 void
-ForwarderGeneralModule::fetchStatus(Controller& controller,
+ForwarderGeneralModule::fetchStatus(ndn::nfd::Controller& controller,
                                     const std::function<void()>& onSuccess,
-                                    const Controller::DatasetFailCallback& onFailure,
+                                    const ndn::nfd::DatasetFailureCallback& onFailure,
                                     const CommandOptions& options)
 {
   controller.fetch<ndn::nfd::ForwarderGeneralStatusDataset>(
@@ -46,7 +45,7 @@ ForwarderGeneralModule::fetchStatus(Controller& controller,
     onFailure, options);
 }
 
-static time::system_clock::Duration
+static auto
 calculateUptime(const ForwarderStatus& status)
 {
   return status.getCurrentTimestamp() - status.getStartTimestamp();
@@ -130,6 +129,4 @@ ForwarderGeneralModule::formatItemText(std::ostream& os, const ForwarderStatus& 
   os << ia.end();
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,23 +28,23 @@
 
 #include "ethernet-transport.hpp"
 
-namespace nfd {
-namespace face {
+#include <ndn-cxx/util/scheduler.hpp>
+
+namespace nfd::face {
 
 /**
- * @brief A unicast Transport that uses raw Ethernet II frames
+ * @brief A unicast Transport that uses raw Ethernet II frames.
  */
 class UnicastEthernetTransport final : public EthernetTransport
 {
 public:
   /**
-   * @brief Creates an Ethernet-based transport for unicast communication
+   * @brief Creates an Ethernet-based transport for unicast communication.
    */
   UnicastEthernetTransport(const ndn::net::NetworkInterface& localEndpoint,
                            const ethernet::Address& remoteEndpoint,
                            ndn::nfd::FacePersistency persistency,
-                           time::nanoseconds idleTimeout,
-                           optional<ssize_t> overrideMtu = {});
+                           time::nanoseconds idleTimeout);
 
 protected:
   bool
@@ -59,10 +59,9 @@ private:
 
 private:
   const time::nanoseconds m_idleTimeout;
-  scheduler::ScopedEventId m_closeIfIdleEvent;
+  ndn::scheduler::ScopedEventId m_closeIfIdleEvent;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_UNICAST_ETHERNET_TRANSPORT_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,19 +23,26 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NFD_TOOLS_NFDC_FIND_FACE_HPP
-#define NFD_TOOLS_NFDC_FIND_FACE_HPP
+#ifndef NFD_TOOLS_NFDC_FACE_HELPERS_HPP
+#define NFD_TOOLS_NFDC_FACE_HELPERS_HPP
 
+#include "core/common.hpp"
 #include "execute-command.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/face-query-filter.hpp>
+#include <ndn-cxx/mgmt/nfd/face-status.hpp>
+#include <ndn-cxx/net/face-uri.hpp>
 
+#include <set>
+
+namespace nfd::tools::nfdc {
+
+using ndn::FaceUri;
 using ndn::nfd::FaceQueryFilter;
 using ndn::nfd::FaceStatus;
 
-/** \brief procedure to find a face
+/**
+ * \brief Procedure to find a face.
  */
 class FindFace : noncopyable
 {
@@ -58,27 +65,27 @@ public:
   explicit
   FindFace(ExecuteContext& ctx);
 
-  /** \brief find face by FaceUri
+  /** \brief Find face by FaceUri.
    *  \pre execute has not been invoked
    */
   Code
   execute(const FaceUri& faceUri, bool allowMulti = false);
 
-  /** \brief find face by FaceId
+  /** \brief Find face by FaceId.
    *  \pre execute has not been invoked
    */
   Code
   execute(uint64_t faceId);
 
-  /** \brief find face by FaceId or FaceUri
-   *  \param faceIdOrUri a ndn::any that contains uint64_t or FaceUri
+  /** \brief Find face by FaceId or FaceUri.
+   *  \param faceIdOrUri either a FaceId (uint64_t) or a FaceUri
    *  \param allowMulti effective only if \p faceIdOrUri contains a FaceUri
-   *  \throw ndn::bad_any_cast faceIdOrUri is neither uint64_t nor FaceUri
+   *  \throw std::bad_any_cast faceIdOrUri is neither uint64_t nor FaceUri
    */
   Code
-  execute(const ndn::any& faceIdOrUri, bool allowMulti = false);
+  execute(const std::any& faceIdOrUri, bool allowMulti = false);
 
-  /** \brief find face by FaceQueryFilter
+  /** \brief Find face by FaceQueryFilter.
    *  \pre execute has not been invoked
    */
   Code
@@ -115,20 +122,16 @@ public:
     return m_errorReason;
   }
 
-  /** \brief print results for disambiguation
+  /** \brief Print results for disambiguation.
    */
   void
   printDisambiguation(std::ostream& os, DisambiguationStyle style) const;
 
 private:
-  /** \brief canonize FaceUri
-   *  \return canonical FaceUri if canonization succeeds, input if canonization is unsupported
-   *  \retval nullopt canonization fails; m_errorReason describes the failure
-   */
-  optional<FaceUri>
-  canonize(const std::string& fieldName, const FaceUri& input);
+  std::optional<FaceUri>
+  canonize(const std::string& fieldName, const FaceUri& uri);
 
-  /** \brief retrieve FaceStatus from filter
+  /** \brief Retrieve FaceStatus from filter.
    *  \post m_res == Code::OK and m_results is populated if retrieval succeeds
    *  \post m_res == Code::ERROR and m_errorReason is set if retrieval fails
    */
@@ -143,8 +146,25 @@ private:
   std::string m_errorReason;
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+/**
+ * \brief Canonize a FaceUri.
+ * \return canonical FaceUri (nullopt on failure) and error string
+ */
+std::pair<std::optional<FaceUri>, std::string>
+canonize(ExecuteContext& ctx, const FaceUri& uri);
 
-#endif // NFD_TOOLS_NFDC_FIND_FACE_HPP
+/**
+ * \brief Helper to generate exit code and error message for face canonization failures.
+ * \param uri The FaceUri
+ * \param error The error string returned by the canonization process
+ * \param field An optional field identifier to include with the message
+ * \return exit code and error message
+ */
+std::pair<FindFace::Code, std::string>
+canonizeErrorHelper(const FaceUri& uri,
+                    const std::string& error,
+                    const std::string& field = "");
+
+} // namespace nfd::tools::nfdc
+
+#endif // NFD_TOOLS_NFDC_FACE_HELPERS_HPP

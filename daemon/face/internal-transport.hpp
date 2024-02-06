@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,22 +30,23 @@
 
 #include <ndn-cxx/transport/transport.hpp>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-/** \brief Abstracts a transport that can be paired with another.
+/**
+ * \brief Abstracts a transport that can be paired with another.
  */
 class InternalTransportBase
 {
 public:
-  virtual
-  ~InternalTransportBase() = default;
-
   virtual void
   receivePacket(const Block& packet) = 0;
+
+protected:
+  ~InternalTransportBase() = default;
 };
 
-/** \brief Implements a forwarder-side transport that can be paired with another transport.
+/**
+ * \brief Implements a forwarder-side transport that can be paired with another transport.
  */
 class InternalForwarderTransport final : public Transport, public InternalTransportBase
 {
@@ -57,7 +58,7 @@ public:
                              ndn::nfd::LinkType linkType = ndn::nfd::LINK_TYPE_POINT_TO_POINT);
 
   void
-  setPeer(InternalTransportBase* peer)
+  setPeer(InternalTransportBase* peer) noexcept
   {
     m_peer = peer;
   }
@@ -71,7 +72,7 @@ protected:
 
 private:
   void
-  doSend(const Block& packet, const EndpointId& endpoint) final;
+  doSend(const Block& packet) final;
 
 private:
   NFD_LOG_MEMBER_DECL();
@@ -79,7 +80,8 @@ private:
   InternalTransportBase* m_peer = nullptr;
 };
 
-/** \brief Implements a client-side transport that can be paired with an InternalForwarderTransport.
+/**
+ * \brief Implements a client-side transport that can be paired with an InternalForwarderTransport.
  */
 class InternalClientTransport final : public ndn::Transport, public InternalTransportBase
 {
@@ -101,10 +103,7 @@ public:
   receivePacket(const Block& packet) final;
 
   void
-  send(const Block& wire) final;
-
-  void
-  send(const Block& header, const Block& payload) final;
+  send(const Block& block) final;
 
   void
   close() final
@@ -128,7 +127,6 @@ private:
   signal::ScopedConnection m_fwTransportStateConn;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_INTERNAL_TRANSPORT_HPP

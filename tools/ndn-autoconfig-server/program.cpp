@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,13 +31,11 @@
 
 #include <iostream>
 
-namespace ndn {
-namespace tools {
-namespace autoconfig_server {
+namespace ndn::autoconfig_server {
 
-const Name HUB_DATA_NAME("/localhop/ndn-autoconf/hub");
-const Name ROUTABLE_PREFIXES_DATA_PREFIX("/localhop/nfd");
-const PartialName ROUTABLE_PREFIXES_DATA_SUFFIX("rib/routable-prefixes");
+const Name HUB_DATA_NAME{"/localhop/ndn-autoconf/hub"};
+const Name ROUTABLE_PREFIXES_DATA_PREFIX{"/localhop/nfd"};
+const PartialName ROUTABLE_PREFIXES_DATA_SUFFIX{"rib/routable-prefixes"};
 
 Program::Program(const Options& options, Face& face, KeyChain& keyChain)
   : m_face(face)
@@ -53,12 +51,9 @@ Program::Program(const Options& options, Face& face, KeyChain& keyChain)
 void
 Program::enableHubData(const FaceUri& hubFaceUri)
 {
-  std::string uri = hubFaceUri.toString();
-
   auto data = make_shared<Data>(Name(HUB_DATA_NAME).appendVersion());
   data->setFreshnessPeriod(1_h);
-  data->setContent(makeBinaryBlock(tlv::nfd::Uri,
-                                   reinterpret_cast<const uint8_t*>(uri.data()), uri.size()));
+  data->setContent(makeStringBlock(tlv::nfd::Uri, hubFaceUri.toString()));
   m_keyChain.sign(*data);
 
   m_face.setInterestFilter(HUB_DATA_NAME,
@@ -67,7 +62,9 @@ Program::enableHubData(const FaceUri& hubFaceUri)
         m_face.put(*data);
       }
     },
-    bind(&Program::handlePrefixRegistrationFailure, this, _1, _2));
+    [this] (auto&&... args) {
+      handlePrefixRegistrationFailure(std::forward<decltype(args)>(args)...);
+    });
 }
 
 void
@@ -84,8 +81,10 @@ Program::enableRoutablePrefixesDataset(const std::vector<Name>& routablePrefixes
   m_dispatcher.addTopPrefix(ROUTABLE_PREFIXES_DATA_PREFIX, false);
 
   m_face.registerPrefix(Name(ROUTABLE_PREFIXES_DATA_PREFIX).append(ROUTABLE_PREFIXES_DATA_SUFFIX),
-                        nullptr,
-                        bind(&Program::handlePrefixRegistrationFailure, this, _1, _2));
+    nullptr,
+    [this] (auto&&... args) {
+      handlePrefixRegistrationFailure(std::forward<decltype(args)>(args)...);
+    });
 }
 
 void
@@ -96,6 +95,4 @@ Program::handlePrefixRegistrationFailure(const Name& prefix, const std::string& 
   m_face.shutdown();
 }
 
-} // namespace autoconfig_server
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig_server

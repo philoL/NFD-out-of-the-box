@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -39,8 +39,7 @@
 #include <ndn-cxx/net/network-monitor-stub.hpp>
 #include <ndn-cxx/util/random.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class FaceManagerFixture : public ManagerFixtureWithAuthenticator
 {
@@ -61,8 +60,9 @@ public:
     RANDOMIZE_COUNTERS       = 1 << 3,
   };
 
-  /** \brief adds a face to the FaceTable
-   *  \param options bitwise OR'ed AddFaceFlags
+  /**
+   * \brief Adds a face to the FaceTable.
+   * \param flags bitwise OR'ed AddFaceFlags
    */
   shared_ptr<Face>
   addFace(unsigned int flags = 0)
@@ -96,6 +96,7 @@ public:
 
     advanceClocks(1_ms, 10); // wait for notification posted
     if (flags & REMOVE_LAST_NOTIFICATION) {
+      BOOST_REQUIRE(!m_responses.empty());
       m_responses.pop_back();
     }
 
@@ -169,6 +170,7 @@ BOOST_AUTO_TEST_CASE(FaceDataset)
   std::set<FaceId> faceIds;
   for (size_t idx = 0; idx < nEntries; ++idx) {
     ndn::nfd::FaceStatus decodedStatus(content.elements()[idx]);
+    BOOST_TEST_INFO_SCOPE(decodedStatus);
     BOOST_CHECK(m_faceTable.get(decodedStatus.getFaceId()) != nullptr);
     faceIds.insert(decodedStatus.getFaceId());
   }
@@ -215,8 +217,8 @@ BOOST_AUTO_TEST_CASE(FaceQuery)
   auto face2 = addFace(REMOVE_LAST_NOTIFICATION | SET_SCOPE_LOCAL); // dummy://, local
   auto face3 = addFace(REMOVE_LAST_NOTIFICATION | SET_URI_TEST); // test://
 
-  auto generateQuery = [] (const FaceQueryFilter& filter) {
-    return Interest(Name("/localhost/nfd/faces/query").append(filter.wireEncode()))
+  auto generateQuery = [] (const auto& filter) {
+    return Interest(Name("/localhost/nfd/faces/query").append(tlv::GenericNameComponent, filter.wireEncode()))
            .setCanBePrefix(true);
   };
 
@@ -224,7 +226,7 @@ BOOST_AUTO_TEST_CASE(FaceQuery)
   auto idQuery = generateQuery(FaceQueryFilter().setFaceId(face1->getId()));
   auto scopeQuery = generateQuery(FaceQueryFilter().setFaceScope(ndn::nfd::FACE_SCOPE_NON_LOCAL));
   auto invalidQueryName = Name("/localhost/nfd/faces/query")
-                          .append(ndn::makeStringBlock(tlv::Content, "invalid"));
+                          .append(tlv::GenericNameComponent, ndn::makeStringBlock(tlv::Content, "invalid"));
   auto invalidQuery = Interest(invalidQueryName).setCanBePrefix(true);
 
   receiveInterest(schemeQuery); // face1 and face2 expected
@@ -284,6 +286,13 @@ public:
   {
     return 0;
   }
+
+  void
+  connect(const EndpointId&,
+          const face::FaceParams&,
+          const face::FaceCreatedCallback&,
+          const face::FaceCreationFailedCallback&,
+          time::nanoseconds) final {}
 };
 
 class TestProtocolFactory : public face::ProtocolFactory
@@ -318,7 +327,7 @@ BOOST_AUTO_TEST_CASE(ChannelDataset)
   const size_t nEntries = 42;
   std::map<std::string, shared_ptr<TestChannel>> addedChannels;
   for (size_t i = 0; i < nEntries; i++) {
-    auto channel = factory->addChannel("test" + to_string(i) + "://");
+    auto channel = factory->addChannel("test" + std::to_string(i) + "://");
     addedChannels[channel->getUri().toString()] = channel;
   }
 
@@ -330,6 +339,7 @@ BOOST_AUTO_TEST_CASE(ChannelDataset)
 
   for (size_t idx = 0; idx < nEntries; ++idx) {
     ndn::nfd::ChannelStatus decodedStatus(content.elements()[idx]);
+    BOOST_TEST_INFO_SCOPE(decodedStatus);
     BOOST_CHECK(addedChannels.find(decodedStatus.getLocalUri()) != addedChannels.end());
   }
 }
@@ -368,7 +378,7 @@ BOOST_AUTO_TEST_CASE(FaceEventDownUp)
   FaceId faceId = face->getId();
 
   // trigger FACE_EVENT_DOWN notification
-  dynamic_cast<face::tests::DummyTransport*>(face->getTransport())->setState(face::FaceState::DOWN);
+  dynamic_cast<DummyTransport*>(face->getTransport())->setState(face::FaceState::DOWN);
   advanceClocks(1_ms, 10);
   BOOST_CHECK_EQUAL(face->getState(), face::FaceState::DOWN);
 
@@ -389,7 +399,7 @@ BOOST_AUTO_TEST_CASE(FaceEventDownUp)
   }
 
   // trigger FACE_EVENT_UP notification
-  dynamic_cast<face::tests::DummyTransport*>(face->getTransport())->setState(face::FaceState::UP);
+  dynamic_cast<DummyTransport*>(face->getTransport())->setState(face::FaceState::UP);
   advanceClocks(1_ms, 10);
   BOOST_CHECK_EQUAL(face->getState(), face::FaceState::UP);
 
@@ -444,5 +454,4 @@ BOOST_AUTO_TEST_SUITE_END() // Notifications
 BOOST_AUTO_TEST_SUITE_END() // TestFaceManager
 BOOST_AUTO_TEST_SUITE_END() // Mgmt
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

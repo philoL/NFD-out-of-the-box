@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,17 +29,15 @@
 #include "multicast-discovery.hpp"
 #include "ndn-fch-discovery.hpp"
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
 using nfd::ControlParameters;
 using nfd::ControlResponse;
 
-const time::nanoseconds FACEURI_CANONIZE_TIMEOUT = 4_s;
+constexpr time::nanoseconds FACEURI_CANONIZE_TIMEOUT = 4_s;
 const std::vector<Name> HUB_PREFIXES{"/", "/localhop/nfd"};
-const nfd::RouteOrigin HUB_ROUTE_ORIGIN = nfd::ROUTE_ORIGIN_AUTOCONF;
-const uint64_t HUB_ROUTE_COST = 100;
+constexpr nfd::RouteOrigin HUB_ROUTE_ORIGIN = nfd::ROUTE_ORIGIN_AUTOCONF;
+constexpr uint64_t HUB_ROUTE_COST = 100;
 
 Procedure::Procedure(Face& face, KeyChain& keyChain)
   : m_face(face)
@@ -52,16 +50,16 @@ void
 Procedure::initialize(const Options& options)
 {
   BOOST_ASSERT(m_stages.empty());
-  this->makeStages(options);
+  makeStages(options);
   BOOST_ASSERT(!m_stages.empty());
 
   for (size_t i = 0; i < m_stages.size(); ++i) {
-    m_stages[i]->onSuccess.connect(bind(&Procedure::connect, this, _1));
+    m_stages[i]->onSuccess.connect([this] (const auto& uri) { connect(uri); });
     if (i + 1 < m_stages.size()) {
-      m_stages[i]->onFailure.connect([=] (const std::string&) { m_stages[i + 1]->start(); });
+      m_stages[i]->onFailure.connect([=] (const auto&) { m_stages[i + 1]->start(); });
     }
     else {
-      m_stages[i]->onFailure.connect([=] (const std::string&) { this->onComplete(false); });
+      m_stages[i]->onFailure.connect([=] (const auto&) { onComplete(false); });
     }
   }
 }
@@ -110,7 +108,7 @@ Procedure::connect(const FaceUri& hubFaceUri)
       std::cerr << "Failed to canonize HUB FaceUri: " << reason << std::endl;
       this->onComplete(false);
     },
-    m_face.getIoService(), FACEURI_CANONIZE_TIMEOUT);
+    m_face.getIoContext(), FACEURI_CANONIZE_TIMEOUT);
 }
 
 void
@@ -138,6 +136,4 @@ Procedure::registerPrefixes(uint64_t hubFaceId, size_t index)
     });
 }
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig

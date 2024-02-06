@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,10 +30,9 @@
 
 #include <ndn-cxx/security/signing-info.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-/** \brief a decision made by readvertise policy
+/** \brief A decision made by readvertise policy.
  */
 struct ReadvertiseAction
 {
@@ -41,7 +40,7 @@ struct ReadvertiseAction
   ndn::security::SigningInfo signer; ///< credentials for command signing
 };
 
-/** \brief a policy to decide whether to readvertise a route, and what prefix to readvertise
+/** \brief A policy to decide whether to readvertise a route, and what prefix to readvertise.
  */
 class ReadvertisePolicy : noncopyable
 {
@@ -49,9 +48,9 @@ public:
   virtual
   ~ReadvertisePolicy() = default;
 
-  /** \brief decide whether to readvertise a route, and what prefix to readvertise
+  /** \brief Decide whether to readvertise a route, and what prefix to readvertise.
    */
-  virtual optional<ReadvertiseAction>
+  virtual std::optional<ReadvertiseAction>
   handleNewRoute(const RibRouteRef& ribRoute) const = 0;
 
   /** \return how often readvertisements made by this policy should be refreshed.
@@ -60,7 +59,6 @@ public:
   getRefreshInterval() const = 0;
 };
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_READVERTISE_READVERTISE_POLICY_HPP

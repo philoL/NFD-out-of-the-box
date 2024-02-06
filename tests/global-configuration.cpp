@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,8 +31,7 @@
 #include <fstream>
 #include <stdlib.h>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class GlobalConfiguration
 {
@@ -43,7 +42,7 @@ public:
     if (envHome)
       m_home = envHome;
 
-    auto testHome = boost::filesystem::path(UNIT_TEST_CONFIG_PATH) / "test-home";
+    auto testHome = boost::filesystem::path(UNIT_TESTS_TMPDIR) / "test-home";
     if (::setenv("HOME", testHome.c_str(), 1) != 0)
       NDN_THROW(std::runtime_error("setenv() failed"));
 
@@ -66,13 +65,6 @@ private:
   std::string m_home;
 };
 
-#if BOOST_VERSION >= 106500
 BOOST_TEST_GLOBAL_CONFIGURATION(GlobalConfiguration);
-#elif BOOST_VERSION >= 105900
-BOOST_GLOBAL_FIXTURE(GlobalConfiguration);
-#else
-BOOST_GLOBAL_FIXTURE(GlobalConfiguration)
-#endif
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

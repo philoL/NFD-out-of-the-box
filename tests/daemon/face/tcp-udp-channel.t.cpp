@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,11 +27,10 @@
 #include "udp-channel-fixture.hpp"
 
 #include "test-ip.hpp"
-#include <boost/mpl/vector.hpp>
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include <boost/mp11/list.hpp>
+
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_AUTO_TEST_SUITE(TestTcpUdpChannel)
@@ -41,10 +40,10 @@ struct FixtureAndAddress
 {
   using Fixture = F;
   static constexpr AddressFamily ADDRESS_FAMILY = AF;
-  using Address = typename IpAddressFromFamily<AF>::type;
+  using Address = IpAddressTypeFromFamily<AF>;
 };
 
-using FixtureAndAddressList = boost::mpl::vector<
+using FixtureAndAddressList = boost::mp11::mp_list<
   FixtureAndAddress<TcpChannelFixture, AddressFamily::V4>,
   FixtureAndAddress<TcpChannelFixture, AddressFamily::V6>,
   FixtureAndAddress<UdpChannelFixture, AddressFamily::V4>,
@@ -137,6 +136,8 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(FaceClosure, T, FixtureAndAddressList, T::Fixtu
   BOOST_CHECK_EQUAL(this->listenerChannel->size(), 1);
   BOOST_CHECK_EQUAL(clientChannel->size(), 1);
 
+  BOOST_CHECK_EQUAL(this->clientFaces.at(0)->getChannel().lock(), clientChannel);
+
   this->clientFaces.at(0)->close();
 
   BOOST_CHECK_EQUAL(this->limitedIo.run(2, 5_s), LimitedIo::EXCEED_OPS);
@@ -148,6 +149,4 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(FaceClosure, T, FixtureAndAddressList, T::Fixtu
 BOOST_AUTO_TEST_SUITE_END() // TestTcpUdpChannel
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

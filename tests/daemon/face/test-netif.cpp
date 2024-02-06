@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,9 +26,10 @@
 #include "test-netif.hpp"
 #include "common/global.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
+
+using ndn::net::NetworkInterface;
+using ndn::net::NetworkMonitor;
 
 std::vector<shared_ptr<const NetworkInterface>>
 enumerateNetworkInterfaces(NetworkMonitor& netmon)
@@ -36,7 +37,7 @@ enumerateNetworkInterfaces(NetworkMonitor& netmon)
   if (netmon.getCapabilities() & NetworkMonitor::CAP_ENUM) {
     netmon.onEnumerationCompleted.connect([] { getGlobalIoService().stop(); });
     getGlobalIoService().run();
-    getGlobalIoService().reset();
+    getGlobalIoService().restart();
   }
   return netmon.listNetworkInterfaces();
 }
@@ -44,7 +45,7 @@ enumerateNetworkInterfaces(NetworkMonitor& netmon)
 std::vector<shared_ptr<const NetworkInterface>>
 collectNetworkInterfaces(bool allowCached)
 {
-  static optional<std::vector<shared_ptr<const NetworkInterface>>> cached;
+  static std::optional<std::vector<shared_ptr<const NetworkInterface>>> cached;
   if (!allowCached || !cached) {
     NetworkMonitor netmon(getGlobalIoService());
     cached = enumerateNetworkInterfaces(netmon);
@@ -52,6 +53,4 @@ collectNetworkInterfaces(bool allowCached)
   return *cached;
 }
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

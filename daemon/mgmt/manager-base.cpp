@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,13 +27,13 @@
 
 namespace nfd {
 
-ManagerBase::ManagerBase(const std::string& module, Dispatcher& dispatcher)
+ManagerBase::ManagerBase(std::string_view module, Dispatcher& dispatcher)
   : m_module(module)
   , m_dispatcher(dispatcher)
 {
 }
 
-ManagerBase::ManagerBase(const std::string& module, Dispatcher& dispatcher,
+ManagerBase::ManagerBase(std::string_view module, Dispatcher& dispatcher,
                          CommandAuthenticator& authenticator)
   : m_module(module)
   , m_dispatcher(dispatcher)
@@ -58,21 +58,20 @@ ManagerBase::registerNotificationStream(const std::string& verb)
   return m_dispatcher.addNotificationStream(makeRelPrefix(verb));
 }
 
-void
-ManagerBase::extractRequester(const Interest& interest, ndn::mgmt::AcceptContinuation accept)
+std::string
+ManagerBase::extractSigner(const Interest& interest)
 {
-  const Name& interestName = interest.getName();
-
   try {
-    ndn::SignatureInfo sigInfo(interestName.at(ndn::signed_interest::POS_SIG_INFO).blockFromValue());
-    if (!sigInfo.hasKeyLocator() || sigInfo.getKeyLocator().getType() != tlv::Name) {
-      return accept("");
+    // try v0.3 format first
+    auto sigInfo = interest.getSignatureInfo();
+    if (!sigInfo) {
+      // fallback to v0.2 format
+      sigInfo.emplace(interest.getName().at(ndn::signed_interest::POS_SIG_INFO).blockFromValue());
     }
-
-    accept(sigInfo.getKeyLocator().getName().toUri());
+    return sigInfo->getKeyLocator().getName().toUri();
   }
   catch (const tlv::Error&) {
-    accept("");
+    return "";
   }
 }
 
@@ -103,7 +102,7 @@ ManagerBase::handleCommand(shared_ptr<ControlCommand> command,
                            const ControlCommandHandler& handler,
                            const Name& prefix, const Interest& interest,
                            const ndn::mgmt::ControlParameters& params,
-                           ndn::mgmt::CommandContinuation done)
+                           const ndn::mgmt::CommandContinuation& done)
 {
   BOOST_ASSERT(dynamic_cast<const ControlParameters*>(&params) != nullptr);
 

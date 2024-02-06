@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,6 +33,8 @@
 #include <ndn-cxx/mgmt/nfd/control-parameters.hpp>
 #include <ndn-cxx/mgmt/nfd/control-response.hpp>
 
+#include <functional>
+
 namespace nfd {
 
 using ndn::mgmt::Dispatcher;
@@ -53,9 +55,6 @@ public:
     using std::runtime_error::runtime_error;
   };
 
-  virtual
-  ~ManagerBase();
-
   const std::string&
   getModule() const
   {
@@ -64,14 +63,19 @@ public:
 
 protected:
   /**
-   * @warning if you use this constructor, you MUST override makeAuthorization()
+   * @warning If you use this constructor, you MUST override makeAuthorization().
    */
-  ManagerBase(const std::string& module, Dispatcher& dispatcher);
+  ManagerBase(std::string_view module, Dispatcher& dispatcher);
 
-  ManagerBase(const std::string& module, Dispatcher& dispatcher,
+  ManagerBase(std::string_view module, Dispatcher& dispatcher,
               CommandAuthenticator& authenticator);
 
-PUBLIC_WITH_TESTS_ELSE_PROTECTED: // registrations to the dispatcher
+  // ManagerBase is not supposed to be used polymorphically, so we make the destructor
+  // protected to prevent deletion of derived objects through a pointer to the base class,
+  // which would be UB when the destructor is non-virtual.
+  ~ManagerBase();
+
+NFD_PUBLIC_WITH_TESTS_ELSE_PROTECTED: // registrations to the dispatcher
   // difference from mgmt::ControlCommand: accepts nfd::ControlParameters
   using ControlCommandHandler = std::function<void(const ControlCommand& command,
                                                    const Name& prefix, const Interest& interest,
@@ -90,19 +94,17 @@ PUBLIC_WITH_TESTS_ELSE_PROTECTED: // registrations to the dispatcher
   ndn::mgmt::PostNotification
   registerNotificationStream(const std::string& verb);
 
-PUBLIC_WITH_TESTS_ELSE_PROTECTED: // helpers
+NFD_PUBLIC_WITH_TESTS_ELSE_PROTECTED: // helpers
   /**
-   * @brief Extracts the requester from a ControlCommand request.
+   * @brief Extracts the name from the %KeyLocator of a ControlCommand request.
    *
    * This is called after the signature has been validated.
-   *
-   * @param interest a request for ControlCommand
-   * @param accept callback of successful validation, takes the requester string as a argument
+   * Returns an empty string if %SignatureInfo or %KeyLocator are missing or malformed.
    */
-  void
-  extractRequester(const Interest& interest, ndn::mgmt::AcceptContinuation accept);
+  static std::string
+  extractSigner(const Interest& interest);
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   /**
    * @brief Returns an authorization function for a specific management module and verb.
    */
@@ -115,7 +117,7 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE:
    * @param parameters the original ControlParameters
    * @return whether the original ControlParameters can be validated
    */
-  static bool
+  [[nodiscard]] static bool
   validateParameters(const ControlCommand& command,
                      const ndn::mgmt::ControlParameters& parameters);
 
@@ -127,7 +129,7 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE:
                 const ControlCommandHandler& handler,
                 const Name& prefix, const Interest& interest,
                 const ndn::mgmt::ControlParameters& params,
-                ndn::mgmt::CommandContinuation done);
+                const ndn::mgmt::CommandContinuation& done);
 
   /**
    * @brief Generates the relative prefix for a handler by appending the verb name to the module name.
@@ -148,7 +150,7 @@ private:
 };
 
 template<typename Command>
-inline void
+void
 ManagerBase::registerCommandHandler(const std::string& verb,
                                     const ControlCommandHandler& handler)
 {
@@ -157,8 +159,8 @@ ManagerBase::registerCommandHandler(const std::string& verb,
   m_dispatcher.addControlCommand<ControlParameters>(
     makeRelPrefix(verb),
     makeAuthorization(verb),
-    bind(&ManagerBase::validateParameters, std::cref(*command), _1),
-    bind(&ManagerBase::handleCommand, command, handler, _1, _2, _3, _4));
+    [=] (const auto& params) { return validateParameters(*command, params); },
+    [=] (auto&&... args) { handleCommand(command, handler, std::forward<decltype(args)>(args)...); });
 }
 
 } // namespace nfd

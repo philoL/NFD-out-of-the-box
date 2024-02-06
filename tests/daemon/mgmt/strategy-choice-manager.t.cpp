@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,8 +31,7 @@
 
 #include <ndn-cxx/mgmt/nfd/strategy-choice.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class StrategyChoiceManagerFixture : public ManagerFixtureWithAuthenticator
 {
@@ -40,7 +39,7 @@ public:
   StrategyChoiceManagerFixture()
     : sc(m_forwarder.getStrategyChoice())
     , manager(sc, m_dispatcher, *m_authenticator)
-    , strategyNameP("/strategy-choice-manager-P/%FD%02")
+    , strategyNameP(Name("/strategy-choice-manager-P").appendVersion(2))
   {
     VersionedDummyStrategy<2>::registerAs(strategyNameP);
 
@@ -62,12 +61,8 @@ public:
   Name
   getInstanceName(const Name& name) const
   {
-    bool hasEntry = false;
-    Name instanceName;
-    std::tie(hasEntry, instanceName) = sc.get(name);
-    return hasEntry ?
-           instanceName :
-           Name("/no-StrategyChoice-entry-at").append(name);
+    auto [hasEntry, instanceName] = sc.get(name);
+    return hasEntry ? instanceName : Name("/no-StrategyChoice-entry-at").append(name);
   }
 
 protected:
@@ -136,7 +131,7 @@ BOOST_AUTO_TEST_CASE(SetNameTooLong)
   ControlResponse expectedResp;
   expectedResp.setCode(414)
               .setText("Prefix has too many components (limit is " +
-                       to_string(NameTree::getMaxDepth()) + ")");
+                       std::to_string(NameTree::getMaxDepth()) + ")");
   BOOST_CHECK_EQUAL(checkResponse(0, req.getName(), expectedResp),
                     CheckResponseResult::OK);
 
@@ -223,14 +218,13 @@ BOOST_AUTO_TEST_CASE(StrategyChoiceDataset)
 
   for (auto i = dataset.elements_begin(); i != dataset.elements_end(); ++i) {
     ndn::nfd::StrategyChoice record(*i);
+    BOOST_TEST_INFO_SCOPE(record);
     auto found = expected.find(record.getName());
     if (found == expected.end()) {
       BOOST_ERROR("record has unexpected namespace " << record.getName());
     }
     else {
-      BOOST_CHECK_MESSAGE(record.getStrategy() == found->second,
-        "record for " << record.getName() << " has wrong strategy " << record.getStrategy() <<
-        ", should be " << found->second);
+      BOOST_TEST(record.getStrategy() == found->second);
       expected.erase(found);
     }
   }
@@ -243,5 +237,4 @@ BOOST_AUTO_TEST_CASE(StrategyChoiceDataset)
 BOOST_AUTO_TEST_SUITE_END() // TestStrategyChoiceManager
 BOOST_AUTO_TEST_SUITE_END() // Mgmt
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

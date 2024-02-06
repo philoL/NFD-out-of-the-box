@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,14 +31,13 @@
 
 #include <boost/lexical_cast.hpp>
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 class Strategy;
-} // namespace fw
+} // namespace nfd::fw
 
-namespace tests {
+namespace nfd::tests {
 
-/** \brief choose the strategy for a namespace
+/** \brief Choose the strategy for a namespace.
  *  \tparam S strategy type, must be a complete type
  *  \param forwarder the forwarder
  *  \param prefix namespace to choose the strategy for
@@ -48,7 +47,7 @@ namespace tests {
  *  \return a reference to the strategy
  */
 template<typename S>
-typename std::enable_if<std::is_base_of<fw::Strategy, S>::value, S&>::type
+std::enable_if_t<std::is_base_of_v<fw::Strategy, S>, S&>
 choose(Forwarder& forwarder, const Name& prefix = "/",
        const Name& instanceName = S::getStrategyName())
 {
@@ -60,7 +59,6 @@ choose(Forwarder& forwarder, const Name& prefix = "/",
   return dynamic_cast<S&>(sc.findEffectiveStrategy(prefix));
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FW_CHOOSE_STRATEGY_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -36,6 +36,8 @@
 #include <ndn-cxx/mgmt/nfd/face-query-filter.hpp>
 #include <ndn-cxx/mgmt/nfd/face-status.hpp>
 
+#include <limits>
+
 namespace nfd {
 
 NFD_LOG_INIT(FaceManager);
@@ -47,14 +49,20 @@ FaceManager::FaceManager(FaceSystem& faceSystem,
   , m_faceTable(faceSystem.getFaceTable())
 {
   // register handlers for ControlCommand
-  registerCommandHandler<ndn::nfd::FaceCreateCommand>("create", bind(&FaceManager::createFace, this, _4, _5));
-  registerCommandHandler<ndn::nfd::FaceUpdateCommand>("update", bind(&FaceManager::updateFace, this, _3, _4, _5));
-  registerCommandHandler<ndn::nfd::FaceDestroyCommand>("destroy", bind(&FaceManager::destroyFace, this, _4, _5));
+  registerCommandHandler<ndn::nfd::FaceCreateCommand>("create",
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { createFace(std::forward<decltype(args)>(args)...); });
+  registerCommandHandler<ndn::nfd::FaceUpdateCommand>("update",
+    [this] (auto&&, auto&&, auto&&... args) { updateFace(std::forward<decltype(args)>(args)...); });
+  registerCommandHandler<ndn::nfd::FaceDestroyCommand>("destroy",
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { destroyFace(std::forward<decltype(args)>(args)...); });
 
   // register handlers for StatusDataset
-  registerStatusDatasetHandler("list", bind(&FaceManager::listFaces, this, _3));
-  registerStatusDatasetHandler("channels", bind(&FaceManager::listChannels, this, _3));
-  registerStatusDatasetHandler("query", bind(&FaceManager::queryFaces, this, _2, _3));
+  registerStatusDatasetHandler("list",
+    [this] (auto&&, auto&&, auto&&... args) { listFaces(std::forward<decltype(args)>(args)...); });
+  registerStatusDatasetHandler("channels",
+    [this] (auto&&, auto&&, auto&&... args) { listChannels(std::forward<decltype(args)>(args)...); });
+  registerStatusDatasetHandler("query",
+    [this] (auto&&, auto&&... args) { queryFaces(std::forward<decltype(args)>(args)...); });
 
   // register notification stream
   m_postNotification = registerNotificationStream("events");
@@ -84,7 +92,7 @@ FaceManager::createFace(const ControlParameters& parameters,
     return;
   }
 
-  optional<FaceUri> localUri;
+  std::optional<FaceUri> localUri;
   if (parameters.hasLocalUri()) {
     localUri = FaceUri{};
 
@@ -117,7 +125,8 @@ FaceManager::createFace(const ControlParameters& parameters,
     faceParams.defaultCongestionThreshold = parameters.getDefaultCongestionThreshold();
   }
   if (parameters.hasMtu()) {
-    faceParams.mtu = parameters.getMtu();
+    // The face system limits MTUs to ssize_t, but the management protocol uses uint64_t
+    faceParams.mtu = std::min<uint64_t>(std::numeric_limits<ssize_t>::max(), parameters.getMtu());
   }
   faceParams.wantLocalFields = parameters.hasFlagBit(ndn::nfd::BIT_LOCAL_FIELDS_ENABLED) &&
                                parameters.getFlagBit(ndn::nfd::BIT_LOCAL_FIELDS_ENABLED);
@@ -152,13 +161,10 @@ template<typename T>
 static void
 copyMtu(const Face& face, T& to)
 {
-  auto transport = face.getTransport();
-  BOOST_ASSERT(transport != nullptr);
-
-  if (transport->getMtu() > 0) {
-    to.setMtu(std::min(static_cast<size_t>(transport->getMtu()), ndn::MAX_NDN_PACKET_SIZE));
+  if (face.getMtu() >= 0) {
+    to.setMtu(std::min<size_t>(face.getMtu(), ndn::MAX_NDN_PACKET_SIZE));
   }
-  else if (transport->getMtu() == face::MTU_UNLIMITED) {
+  else if (face.getMtu() == face::MTU_UNLIMITED) {
     to.setMtu(ndn::MAX_NDN_PACKET_SIZE);
   }
 }
@@ -169,6 +175,7 @@ makeUpdateFaceResponse(const Face& face)
   ControlParameters params;
   params.setFaceId(face.getId())
         .setFacePersistency(face.getPersistency());
+  copyMtu(face, params);
 
   auto linkService = dynamic_cast<face::GenericLinkService*>(face.getLinkService());
   if (linkService != nullptr) {
@@ -189,8 +196,6 @@ makeCreateFaceResponse(const Face& face)
   ControlParameters params = makeUpdateFaceResponse(face);
   params.setUri(face.getRemoteUri().toString())
         .setLocalUri(face.getLocalUri().toString());
-
-  copyMtu(face, params);
 
   return params;
 }
@@ -246,6 +251,11 @@ updateLinkServiceOptions(Face& face, const ControlParameters& parameters)
     options.defaultCongestionThreshold = parameters.getDefaultCongestionThreshold();
   }
 
+  if (parameters.hasMtu()) {
+    // The face system limits MTUs to ssize_t, but the management protocol uses uint64_t
+    options.overrideMtu = std::min<uint64_t>(std::numeric_limits<ssize_t>::max(), parameters.getMtu());
+  }
+
   linkService->setOptions(options);
 }
 
@@ -255,7 +265,7 @@ FaceManager::updateFace(const Interest& interest,
                         const ndn::mgmt::CommandContinuation& done)
 {
   FaceId faceId = parameters.getFaceId();
-  if (faceId == 0) { // Self-update
+  if (faceId == face::INVALID_FACEID) { // Self-update
     auto incomingFaceIdTag = interest.getTag<lp::IncomingFaceIdTag>();
     if (incomingFaceIdTag == nullptr) {
       NFD_LOG_TRACE("unable to determine face for self-update");
@@ -292,6 +302,19 @@ FaceManager::updateFace(const Interest& interest,
       NFD_LOG_TRACE("cannot change face persistency to " << persistency);
       areParamsValid = false;
       response.setFacePersistency(persistency);
+    }
+  }
+
+  // check whether the requested MTU override is valid (if it's present)
+  if (parameters.hasMtu()) {
+    auto mtu = parameters.getMtu();
+    // The face system limits MTUs to ssize_t, but the management protocol uses uint64_t
+    auto actualMtu = std::min<uint64_t>(std::numeric_limits<ssize_t>::max(), mtu);
+    auto linkService = dynamic_cast<face::GenericLinkService*>(face->getLinkService());
+    if (linkService == nullptr || !linkService->canOverrideMtuTo(actualMtu)) {
+      NFD_LOG_TRACE("cannot override face MTU to " << mtu);
+      areParamsValid = false;
+      response.setMtu(mtu);
     }
   }
 
@@ -344,13 +367,13 @@ copyFaceProperties(const Face& face, T& to)
 }
 
 static ndn::nfd::FaceStatus
-makeFaceStatus(const Face& face, const time::steady_clock::TimePoint& now)
+makeFaceStatus(const Face& face, const time::steady_clock::time_point& now)
 {
   ndn::nfd::FaceStatus status;
   copyFaceProperties(face, status);
 
   auto expirationTime = face.getExpirationTime();
-  if (expirationTime != time::steady_clock::TimePoint::max()) {
+  if (expirationTime != time::steady_clock::time_point::max()) {
     status.setExpirationPeriod(std::max(0_ms,
                                         time::duration_cast<time::milliseconds>(expirationTime - now)));
   }

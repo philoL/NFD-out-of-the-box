@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,12 +27,7 @@
 #include "pit-entry.hpp"
 #include "measurements-entry.hpp"
 
-#include <ndn-cxx/util/concepts.hpp>
-
-namespace nfd {
-namespace fib {
-
-NDN_CXX_ASSERT_FORWARD_ITERATOR(Fib::const_iterator);
+namespace nfd::fib {
 
 const unique_ptr<Entry> Fib::s_emptyEntry = make_unique<Entry>(Name());
 
@@ -135,10 +130,7 @@ Fib::erase(const Entry& entry)
 void
 Fib::addOrUpdateNextHop(Entry& entry, Face& face, uint64_t cost)
 {
-  NextHopList::iterator it;
-  bool isNew;
-  std::tie(it, isNew) = entry.addOrUpdateNextHop(face, cost);
-
+  auto [it, isNew] = entry.addOrUpdateNextHop(face, cost);
   if (isNew)
     this->afterNewNextHop(entry.getPrefix(), *it);
 }
@@ -168,5 +160,4 @@ Fib::getRange() const
          boost::adaptors::transformed(name_tree::GetTableEntry<Entry>(&name_tree::Entry::getFibEntry));
 }
 
-} // namespace fib
-} // namespace nfd
+} // namespace nfd::fib

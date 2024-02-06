@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,28 +28,29 @@
 
 #include "module.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/forwarder-status.hpp>
+
+namespace nfd::tools::nfdc {
 
 using ndn::nfd::ForwarderStatus;
 
-/** \brief provides access to NFD forwarder general status
- *  \sa https://redmine.named-data.net/projects/nfd/wiki/ForwarderStatus
+/**
+ * \brief Provides access to NFD forwarder general status.
+ * \sa https://redmine.named-data.net/projects/nfd/wiki/ForwarderStatus
  */
-class ForwarderGeneralModule : public Module, noncopyable
+class ForwarderGeneralModule : public Module, boost::noncopyable
 {
 public:
   void
-  fetchStatus(Controller& controller,
+  fetchStatus(ndn::nfd::Controller& controller,
               const std::function<void()>& onSuccess,
-              const Controller::DatasetFailCallback& onFailure,
+              const ndn::nfd::DatasetFailureCallback& onFailure,
               const CommandOptions& options) override;
 
   void
   formatStatusXml(std::ostream& os) const override;
 
-  /** \brief format a single status item as XML
+  /** \brief Format a single status item as XML.
    *  \param os output stream
    *  \param item status item
    */
@@ -59,7 +60,7 @@ public:
   void
   formatStatusText(std::ostream& os) const override;
 
-  /** \brief format a single status item as text
+  /** \brief Format a single status item as text.
    *  \param os output stream
    *  \param item status item
    */
@@ -70,8 +71,6 @@ private:
   ForwarderStatus m_status;
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_FORWARDER_GENERAL_MODULE_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,8 +28,7 @@
 
 #include <ndn-cxx/util/random.hpp>
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
 NFD_REGISTER_STRATEGY(RandomStrategy);
 NFD_LOG_INIT(RandomStrategy);
@@ -43,8 +42,8 @@ RandomStrategy::RandomStrategy(Forwarder& forwarder, const Name& name)
     NDN_THROW(std::invalid_argument("RandomStrategy does not accept parameters"));
   }
   if (parsed.version && *parsed.version != getStrategyName()[-1].toVersion()) {
-    NDN_THROW(std::invalid_argument(
-      "RandomStrategy does not support version " + to_string(*parsed.version)));
+    NDN_THROW(std::invalid_argument("RandomStrategy does not support version " +
+                                    std::to_string(*parsed.version)));
   }
   this->setInstanceName(makeInstanceName(name, getStrategyName()));
 }
@@ -52,41 +51,38 @@ RandomStrategy::RandomStrategy(Forwarder& forwarder, const Name& name)
 const Name&
 RandomStrategy::getStrategyName()
 {
-  static Name strategyName("/localhost/nfd/strategy/random/%FD%01");
+  static const auto strategyName = Name("/localhost/nfd/strategy/random").appendVersion(1);
   return strategyName;
 }
 
 void
-RandomStrategy::afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+RandomStrategy::afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                                      const shared_ptr<pit::Entry>& pitEntry)
 {
   const fib::Entry& fibEntry = this->lookupFib(*pitEntry);
-  const Face& inFace = ingress.face;
   fib::NextHopList nhs;
 
   std::copy_if(fibEntry.getNextHops().begin(), fibEntry.getNextHops().end(), std::back_inserter(nhs),
-               [&] (const auto& nh) { return isNextHopEligible(inFace, interest, nh, pitEntry); });
+               [&] (const auto& nh) { return isNextHopEligible(ingress.face, interest, nh, pitEntry); });
 
   if (nhs.empty()) {
-    NFD_LOG_DEBUG(interest << " from=" << ingress << " no nexthop");
-
+    NFD_LOG_INTEREST_FROM(interest, ingress, "no-nexthop");
     lp::NackHeader nackHeader;
     nackHeader.setReason(lp::NackReason::NO_ROUTE);
-    this->sendNack(pitEntry, ingress, nackHeader);
+    this->sendNack(nackHeader, ingress.face, pitEntry);
     this->rejectPendingInterest(pitEntry);
     return;
   }
 
   std::shuffle(nhs.begin(), nhs.end(), ndn::random::getRandomNumberEngine());
-  this->sendInterest(pitEntry, FaceEndpoint(nhs.front().getFace(), 0), interest);
+  this->sendInterest(interest, nhs.front().getFace(), pitEntry);
 }
 
 void
-RandomStrategy::afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
+RandomStrategy::afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                                  const shared_ptr<pit::Entry>& pitEntry)
 {
-  this->processNack(ingress.face, nack, pitEntry);
+  this->processNack(nack, ingress.face, pitEntry);
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

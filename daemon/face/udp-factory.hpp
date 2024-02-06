@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,14 +27,15 @@
 #define NFD_DAEMON_FACE_UDP_FACTORY_HPP
 
 #include "protocol-factory.hpp"
+#include "network-predicate.hpp"
 #include "udp-channel.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-/** \brief Protocol factory for UDP over IPv4 and IPv6
+/**
+ * \brief Protocol factory for UDP over IPv4 and IPv6.
  */
-class UdpFactory : public ProtocolFactory
+class UdpFactory final : public ProtocolFactory
 {
 public:
   class Error : public ProtocolFactory::Error
@@ -50,9 +51,9 @@ public:
   UdpFactory(const CtorParams& params);
 
   /**
-   * \brief Create UDP-based channel using udp::Endpoint
+   * \brief Create UDP-based channel using udp::Endpoint.
    *
-   * udp::Endpoint is really an alias for boost::asio::ip::udp::endpoint.
+   * udp::Endpoint is an alias for boost::asio::ip::udp::endpoint.
    *
    * If this method is called twice with the same endpoint, only one channel
    * will be created. The second call will just return the existing channel.
@@ -60,7 +61,7 @@ public:
    * If a multicast face is already active on the same local endpoint,
    * the creation fails and an exception is thrown.
    *
-   * \return always a valid pointer to a UdpChannel object, an exception
+   * \return Always a valid pointer to a UdpChannel object, an exception
    *         is thrown if it cannot be created.
    * \throw UdpFactory::Error
    */
@@ -69,9 +70,9 @@ public:
                 time::nanoseconds idleTimeout);
 
   /**
-   * \brief Create a multicast UDP face
+   * \brief Create a multicast UDP face.
    *
-   * udp::Endpoint is really an alias for boost::asio::ip::udp::endpoint.
+   * udp::Endpoint is an alias for boost::asio::ip::udp::endpoint.
    *
    * The face will join the specified multicast group.
    *
@@ -86,43 +87,44 @@ public:
    * \param localAddress the local IP address to which the face will be bound
    * \param multicastEndpoint the multicast endpoint (multicast group and port number)
    *
-   * \return always a valid shared pointer to the created face;
+   * \return Always a valid shared pointer to the created face;
    *         an exception is thrown if the face cannot be created.
-   * \throw UdpFactory::Error
+   * \throw std::runtime_error %Face creation failed
    */
   shared_ptr<Face>
-  createMulticastFace(const shared_ptr<const ndn::net::NetworkInterface>& netif,
+  createMulticastFace(const ndn::net::NetworkInterface& netif,
                       const boost::asio::ip::address& localAddress,
                       const udp::Endpoint& multicastEndpoint);
 
 private:
-  /** \brief process face_system.udp config section
-   */
   void
   doProcessConfig(OptionalConfigSection configSection,
-                  FaceSystem::ConfigContext& context) override;
+                  FaceSystem::ConfigContext& context) final;
 
   void
   doCreateFace(const CreateFaceRequest& req,
                const FaceCreatedCallback& onCreated,
-               const FaceCreationFailedCallback& onFailure) override;
+               const FaceCreationFailedCallback& onFailure) final;
 
   std::vector<shared_ptr<const Channel>>
-  doGetChannels() const override;
+  doGetChannels() const final;
 
-  /** \brief Create UDP multicast faces on \p netif if needed by \p m_mcastConfig
-   *  \return list of faces (just created or already existing) on \p netif
+  /**
+   * \brief Create UDP multicast faces on \p netif if needed by \p m_mcastConfig.
+   * \return List of faces (just created or already existing) on \p netif.
    */
   std::vector<shared_ptr<Face>>
   applyMcastConfigToNetif(const shared_ptr<const ndn::net::NetworkInterface>& netif);
 
-  /** \brief Create and destroy UDP multicast faces according to \p m_mcastConfig
+  /**
+   * \brief Create and destroy UDP multicast faces according to \p m_mcastConfig.
    */
   void
   applyMcastConfig(const FaceSystem::ConfigContext& context);
 
 private:
   bool m_wantCongestionMarking = false;
+  size_t m_defaultUnicastMtu = ndn::MAX_NDN_PACKET_SIZE;
   std::map<udp::Endpoint, shared_ptr<UdpChannel>> m_channels;
 
   struct MulticastConfig
@@ -144,7 +146,6 @@ private:
   std::map<int, NetifConns> m_netifConns; // ifindex => signal connections
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_UDP_FACTORY_HPP

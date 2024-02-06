@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,17 +25,16 @@
 
 #include "congestion-mark-strategy.hpp"
 
-namespace nfd {
-namespace fw {
+#include <boost/lexical_cast.hpp>
+
+namespace nfd::fw {
 
 NFD_REGISTER_STRATEGY(CongestionMarkStrategy);
 
 CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name& name)
-  // Specifying BestRouteStrategy2's own name in its constructor prevents an exception from occuring
+  // Specifying BestRouteStrategy's own name in its constructor prevents an exception from occuring
   // when specifying parameters to CongestionMarkStrategy
-  : BestRouteStrategy2(forwarder, BestRouteStrategy2::getStrategyName())
-  , m_congestionMark(1)
-  , m_shouldPreserveMark(true)
+  : BestRouteStrategy(forwarder, BestRouteStrategy::getStrategyName())
 {
   ParsedInstanceName parsed = parseInstanceName(name);
   switch (parsed.parameters.size()) {
@@ -45,7 +44,7 @@ CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name&
         "Second parameter to CongestionMarkStrategy must be either 'true' or 'false'"));
     }
     m_shouldPreserveMark = parsed.parameters.at(1).toUri() == "true";
-    NDN_CXX_FALLTHROUGH;
+    [[fallthrough]];
   case 1:
     try {
       auto s = parsed.parameters.at(0).toUri();
@@ -57,7 +56,7 @@ CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name&
       NDN_THROW(std::invalid_argument(
         "First parameter to CongestionMarkStrategy must be a non-negative integer"));
     }
-    NDN_CXX_FALLTHROUGH;
+    [[fallthrough]];
   case 0:
     break;
   default:
@@ -65,8 +64,8 @@ CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name&
   }
 
   if (parsed.version && *parsed.version != getStrategyName()[-1].toVersion()) {
-    NDN_THROW(std::invalid_argument(
-      "CongestionMarkStrategy does not support version " + to_string(*parsed.version)));
+    NDN_THROW(std::invalid_argument("CongestionMarkStrategy does not support version " +
+                                    std::to_string(*parsed.version)));
   }
   this->setInstanceName(makeInstanceName(name, getStrategyName()));
 }
@@ -74,24 +73,23 @@ CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name&
 const Name&
 CongestionMarkStrategy::getStrategyName()
 {
-  static Name strategyName("/localhost/nfd/strategy/congestion-mark/%FD%01");
+  static const auto strategyName = Name("/localhost/nfd/strategy/congestion-mark").appendVersion(1);
   return strategyName;
 }
 
 void
-CongestionMarkStrategy::afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+CongestionMarkStrategy::afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                                              const shared_ptr<pit::Entry>& pitEntry)
 {
   auto mark = interest.getCongestionMark();
   if (mark != m_congestionMark && (!m_shouldPreserveMark || mark == 0)) {
     Interest markedInterest(interest);
     markedInterest.setCongestionMark(m_congestionMark);
-    BestRouteStrategy2::afterReceiveInterest(ingress, markedInterest, pitEntry);
+    BestRouteStrategy::afterReceiveInterest(markedInterest, ingress, pitEntry);
   }
   else {
-    BestRouteStrategy2::afterReceiveInterest(ingress, interest, pitEntry);
+    BestRouteStrategy::afterReceiveInterest(interest, ingress, pitEntry);
   }
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

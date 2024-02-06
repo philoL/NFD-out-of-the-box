@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,8 +32,8 @@
 
 namespace nfd {
 
-ConfigFile::ConfigFile(UnknownConfigSectionHandler unknownSectionCallback)
-  : m_unknownSectionCallback(unknownSectionCallback)
+ConfigFile::ConfigFile(UnknownConfigSectionHandler callback)
+  : m_unknownSectionCallback(std::move(callback))
 {
 }
 
@@ -77,7 +77,7 @@ void
 ConfigFile::addSectionHandler(const std::string& sectionName,
                               ConfigSectionHandler subscriber)
 {
-  m_subscriptions[sectionName] = subscriber;
+  m_subscriptions[sectionName] = std::move(subscriber);
 }
 
 void
@@ -106,7 +106,7 @@ ConfigFile::parse(std::istream& input, bool isDryRun, const std::string& filenam
   }
   catch (const boost::property_tree::info_parser_error& error) {
     NDN_THROW(Error("Failed to parse configuration file " + filename +
-                    ": " + error.message() + " on line " + to_string(error.line())));
+                    ": " + error.message() + " on line " + std::to_string(error.line())));
   }
 
   process(isDryRun, filename);

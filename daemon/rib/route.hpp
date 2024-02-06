@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -35,32 +35,32 @@
 
 #include <type_traits>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-/** \brief represents a route for a name prefix
+/**
+ * \brief Represents a route for a name prefix.
  */
-class Route : public ndn::nfd::RouteFlagsTraits<Route>
+class Route : public ndn::nfd::RouteFlagsTraits<Route>, private boost::equality_comparable<Route>
 {
 public:
-  /** \brief default constructor
+  /** \brief Default constructor.
    */
-  Route() = default;
+  Route();
 
-  /** \brief construct from a prefix announcement
+  /** \brief Construct from a prefix announcement.
    *  \param ann a prefix announcement that has passed verification
    *  \param faceId the face on which \p ann arrived
    */
   Route(const ndn::PrefixAnnouncement& ann, uint64_t faceId);
 
-  const scheduler::EventId&
+  const ndn::scheduler::EventId&
   getExpirationEvent() const
   {
     return m_expirationEvent;
   }
 
   void
-  setExpirationEvent(const scheduler::EventId& eid)
+  setExpirationEvent(const ndn::scheduler::EventId& eid)
   {
     m_expirationEvent = eid;
   }
@@ -77,18 +77,30 @@ public:
     return flags;
   }
 
+public: // non-member operators (hidden friends)
+  friend bool
+  operator==(const Route& lhs, const Route& rhs)
+  {
+    return lhs.faceId == rhs.faceId &&
+           lhs.origin == rhs.origin &&
+           lhs.cost == rhs.cost &&
+           lhs.flags == rhs.flags &&
+           lhs.expires == rhs.expires &&
+           lhs.announcement == rhs.announcement;
+  }
+
 public:
   uint64_t faceId = 0;
   ndn::nfd::RouteOrigin origin = ndn::nfd::ROUTE_ORIGIN_APP;
   uint64_t cost = 0;
   std::underlying_type_t<ndn::nfd::RouteFlags> flags = ndn::nfd::ROUTE_FLAGS_NONE;
-  optional<time::steady_clock::TimePoint> expires;
+  std::optional<time::steady_clock::time_point> expires;
 
   /** \brief The prefix announcement that caused the creation of this route.
    *
    *  This is nullopt if this route is not created by a prefix announcement.
    */
-  optional<ndn::PrefixAnnouncement> announcement;
+  std::optional<ndn::PrefixAnnouncement> announcement;
 
   /** \brief Expiration time of the prefix announcement.
    *
@@ -98,37 +110,15 @@ public:
    *  not yet valid or has expired. In this case, the exact value of this field does not matter.
    *  If this field is after the current time, it indicates when the prefix announcement expires.
    */
-  time::steady_clock::TimePoint annExpires;
+  time::steady_clock::time_point annExpires;
 
 private:
-  scheduler::EventId m_expirationEvent;
+  ndn::scheduler::EventId m_expirationEvent;
 };
-
-bool
-operator==(const Route& lhs, const Route& rhs);
-
-inline bool
-operator!=(const Route& lhs, const Route& rhs)
-{
-  return !(lhs == rhs);
-}
-
-inline bool
-compareFaceIdAndOrigin(const Route& lhs, const Route& rhs)
-{
-  return (lhs.faceId == rhs.faceId && lhs.origin == rhs.origin);
-}
-
-inline bool
-compareFaceId(const Route& route, const uint64_t faceId)
-{
-  return (route.faceId == faceId);
-}
 
 std::ostream&
 operator<<(std::ostream& os, const Route& route);
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_ROUTE_HPP

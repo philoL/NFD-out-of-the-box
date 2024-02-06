@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,10 +28,7 @@
 #include "execute-command-fixture.hpp"
 #include "status-fixture.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+namespace nfd::tools::nfdc::tests {
 
 BOOST_AUTO_TEST_SUITE(Nfdc)
 BOOST_AUTO_TEST_SUITE(TestStrategyChoiceModule)
@@ -48,11 +45,11 @@ protected:
 
     StrategyChoice entry1;
     entry1.setName("/");
-    entry1.setStrategy("/strategyP/%FD%01");
+    entry1.setStrategy(Name("/strategyP").appendVersion(1));
 
     StrategyChoice entry2;
     entry2.setName("/52VRvpL9/Yqfut4TNHv");
-    entry2.setStrategy("/strategyQ/%FD%02");
+    entry2.setStrategy(Name("/strategyQ").appendVersion(2));
 
     this->sendDataset(interest.getName(), entry1, entry2);
     return true;
@@ -69,8 +66,8 @@ BOOST_AUTO_TEST_CASE(Normal)
 
   this->execute("strategy list");
   BOOST_CHECK_EQUAL(exitCode, 0);
-  BOOST_CHECK(out.is_equal("prefix=/ strategy=/strategyP/%FD%01\n"
-                           "prefix=/52VRvpL9/Yqfut4TNHv strategy=/strategyQ/%FD%02\n"));
+  BOOST_CHECK(out.is_equal("prefix=/ strategy=/strategyP/v=1\n"
+                           "prefix=/52VRvpL9/Yqfut4TNHv strategy=/strategyQ/v=2\n"));
   BOOST_CHECK(err.is_empty());
 }
 
@@ -97,7 +94,7 @@ BOOST_AUTO_TEST_CASE(NormalDefaultStrategy)
   this->execute("strategy show /I1Ixgg0X");
   BOOST_CHECK_EQUAL(exitCode, 0);
   BOOST_CHECK(out.is_equal("  prefix=/\n"
-                           "strategy=/strategyP/%FD%01\n"));
+                           "strategy=/strategyP/v=1\n"));
   BOOST_CHECK(err.is_empty());
 }
 
@@ -110,7 +107,7 @@ BOOST_AUTO_TEST_CASE(NormalNonDefaultStrategy)
   this->execute("strategy show /52VRvpL9/Yqfut4TNHv/Y5gY7gom");
   BOOST_CHECK_EQUAL(exitCode, 0);
   BOOST_CHECK(out.is_equal("  prefix=/52VRvpL9/Yqfut4TNHv\n"
-                           "strategy=/strategyQ/%FD%02\n"));
+                           "strategy=/strategyQ/v=2\n"));
   BOOST_CHECK(err.is_empty());
 }
 
@@ -139,13 +136,13 @@ BOOST_AUTO_TEST_CASE(Normal)
 
     ControlParameters resp;
     resp.setName("/VBXSJg3m/XYs81ARNhx");
-    resp.setStrategy("/strategyP/%FD%05");
+    resp.setStrategy(Name("/strategyP").appendVersion(5));
     this->succeedCommand(interest, resp);
   };
 
   this->execute("strategy set /VBXSJg3m/XYs81ARNhx /strategyP");
   BOOST_CHECK_EQUAL(exitCode, 0);
-  BOOST_CHECK(out.is_equal("strategy-set prefix=/VBXSJg3m/XYs81ARNhx strategy=/strategyP/%FD%05\n"));
+  BOOST_CHECK(out.is_equal("strategy-set prefix=/VBXSJg3m/XYs81ARNhx strategy=/strategyP/v=5\n"));
   BOOST_CHECK(err.is_empty());
 }
 
@@ -225,13 +222,13 @@ const std::string STATUS_XML = stripXmlSpaces(R"XML(
     <strategyChoice>
       <namespace>/</namespace>
       <strategy>
-        <name>/localhost/nfd/strategy/best-route/%FD%04</name>
+        <name>/localhost/nfd/strategy/best-route/v=4</name>
       </strategy>
     </strategyChoice>
     <strategyChoice>
       <namespace>/localhost</namespace>
       <strategy>
-        <name>/localhost/nfd/strategy/multicast/%FD%01</name>
+        <name>/localhost/nfd/strategy/multicast/v=4</name>
       </strategy>
     </strategyChoice>
   </strategyChoices>
@@ -239,8 +236,8 @@ const std::string STATUS_XML = stripXmlSpaces(R"XML(
 
 const std::string STATUS_TEXT = std::string(R"TEXT(
 Strategy choices:
-  prefix=/ strategy=/localhost/nfd/strategy/best-route/%FD%04
-  prefix=/localhost strategy=/localhost/nfd/strategy/multicast/%FD%01
+  prefix=/ strategy=/localhost/nfd/strategy/best-route/v=4
+  prefix=/localhost strategy=/localhost/nfd/strategy/multicast/v=4
 )TEXT").substr(1);
 
 BOOST_FIXTURE_TEST_CASE(Status, StatusFixture<StrategyChoiceModule>)
@@ -248,10 +245,10 @@ BOOST_FIXTURE_TEST_CASE(Status, StatusFixture<StrategyChoiceModule>)
   this->fetchStatus();
   StrategyChoice payload1;
   payload1.setName("/")
-          .setStrategy("/localhost/nfd/strategy/best-route/%FD%04");
+          .setStrategy(Name("/localhost/nfd/strategy/best-route").appendVersion(4));
   StrategyChoice payload2;
   payload2.setName("/localhost")
-          .setStrategy("/localhost/nfd/strategy/multicast/%FD%01");
+          .setStrategy(Name("/localhost/nfd/strategy/multicast").appendVersion(4));
   this->sendDataset("/localhost/nfd/strategy-choice/list", payload1, payload2);
   this->prepareStatusOutput();
 
@@ -262,7 +259,4 @@ BOOST_FIXTURE_TEST_CASE(Status, StatusFixture<StrategyChoiceModule>)
 BOOST_AUTO_TEST_SUITE_END() // TestStrategyChoiceModule
 BOOST_AUTO_TEST_SUITE_END() // Nfdc
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests

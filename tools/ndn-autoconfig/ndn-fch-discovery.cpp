@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,9 +31,7 @@
 #include <regex>
 #include <sstream>
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
 /**
  * A partial and specialized copy of ndn::FaceUri implementation
@@ -129,11 +127,7 @@ private:
 class HttpException : public std::runtime_error
 {
 public:
-  explicit
-  HttpException(const std::string& what)
-    : std::runtime_error(what)
-  {
-  }
+  using std::runtime_error::runtime_error;
 };
 
 NdnFchDiscovery::NdnFchDiscovery(const std::string& url)
@@ -146,11 +140,7 @@ NdnFchDiscovery::doStart()
 {
   try {
     boost::asio::ip::tcp::iostream requestStream;
-#if BOOST_VERSION >= 106700
     requestStream.expires_after(std::chrono::seconds(3));
-#else
-    requestStream.expires_from_now(boost::posix_time::seconds(3));
-#endif // BOOST_VERSION >= 106700
 
     Url url(m_url);
     if (!url.isValid()) {
@@ -191,7 +181,7 @@ NdnFchDiscovery::doStart()
     }
     if (statusCode != 200) {
       boost::trim(statusMessage);
-      NDN_THROW(HttpException("HTTP request failed: " + to_string(statusCode) + " " + statusMessage));
+      NDN_THROW(HttpException("HTTP request failed: " + std::to_string(statusCode) + " " + statusMessage));
     }
     std::string header;
     while (std::getline(requestStream, header) && header != "\r")
@@ -210,6 +200,4 @@ NdnFchDiscovery::doStart()
   }
 }
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,11 +29,9 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::fw;
 
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_FIXTURE_TEST_SUITE(TestAlgorithm, GlobalIoFixture)
@@ -89,27 +87,6 @@ BOOST_AUTO_TEST_CASE(Localhop)
 }
 
 BOOST_AUTO_TEST_SUITE_END() // WouldViolateScope
-
-BOOST_AUTO_TEST_CASE(CanForwardToLegacy)
-{
-  auto interest = makeInterest("ndn:/WDsuBLIMG");
-  pit::Entry entry(*interest);
-
-  auto face1 = make_shared<DummyFace>();
-  auto face2 = make_shared<DummyFace>();
-
-  entry.insertOrUpdateInRecord(*face1, *interest);
-  BOOST_CHECK_EQUAL(canForwardToLegacy(entry, *face1), false);
-  BOOST_CHECK_EQUAL(canForwardToLegacy(entry, *face2), true);
-
-  entry.insertOrUpdateInRecord(*face2, *interest);
-  BOOST_CHECK_EQUAL(canForwardToLegacy(entry, *face1), true);
-  BOOST_CHECK_EQUAL(canForwardToLegacy(entry, *face2), true);
-
-  entry.insertOrUpdateOutRecord(*face1, *interest);
-  BOOST_CHECK_EQUAL(canForwardToLegacy(entry, *face1), false);
-  BOOST_CHECK_EQUAL(canForwardToLegacy(entry, *face2), true);
-}
 
 BOOST_AUTO_TEST_CASE(Nonce)
 {
@@ -176,7 +153,7 @@ BOOST_FIXTURE_TEST_CASE(HasPendingOutRecords, GlobalIoTimeFixture)
   auto face2 = make_shared<DummyFace>();
   auto face3 = make_shared<DummyFace>();
 
-  auto interest = makeInterest("/totzXG0d", false, nullopt, 29321);
+  auto interest = makeInterest("/totzXG0d", false, std::nullopt, 29321);
   pit::Entry entry(*interest);
   BOOST_CHECK_EQUAL(hasPendingOutRecords(entry), false);
 
@@ -211,7 +188,7 @@ BOOST_FIXTURE_TEST_CASE(GetLastOutgoing, GlobalIoTimeFixture)
   auto interest = makeInterest("ndn:/c1I7QCtc");
   pit::Entry entry(*interest);
 
-  time::steady_clock::TimePoint before = time::steady_clock::now();
+  auto before = time::steady_clock::now();
 
   entry.insertOrUpdateOutRecord(*face1, *interest);
   this->advanceClocks(1_s);
@@ -226,6 +203,4 @@ BOOST_FIXTURE_TEST_CASE(GetLastOutgoing, GlobalIoTimeFixture)
 BOOST_AUTO_TEST_SUITE_END() // TestPitAlgorithm
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

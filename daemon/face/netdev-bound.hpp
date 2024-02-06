@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,14 +26,15 @@
 #ifndef NFD_DAEMON_FACE_NETDEV_BOUND_HPP
 #define NFD_DAEMON_FACE_NETDEV_BOUND_HPP
 
+#include "network-predicate.hpp"
 #include "protocol-factory.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 class FaceSystem;
 
-/** \brief manages netdev-bound faces
+/**
+ * \brief Manages netdev-bound faces.
  */
 class NetdevBound : noncopyable
 {
@@ -42,7 +43,7 @@ public:
   {
   public:
     RuleParseError(int index, std::string msg)
-      : Error("Error parsing face_system.netdev_bound.rule[" + to_string(index) + "]: " + msg)
+      : Error("Error parsing face_system.netdev_bound.rule[" + std::to_string(index) + "]: " + msg)
       , index(index)
       , msg(std::move(msg))
     {
@@ -55,13 +56,13 @@ public:
 
   NetdevBound(const ProtocolFactoryCtorParams& params, const FaceSystem& faceSystem);
 
-  /** \brief process face_system.netdev_bound config section
+  /** \brief Process `face_system.netdev_bound` config section.
    */
   void
   processConfig(OptionalConfigSection configSection,
                 FaceSystem::ConfigContext& context);
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   struct Rule
   {
     std::vector<FaceUri> remotes;
@@ -71,7 +72,7 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   Rule
   parseRule(int index, const ConfigSection& confRule) const;
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   const FaceSystem& m_faceSystem;
   FaceCreatedCallback m_addFace;
   shared_ptr<ndn::net::NetworkMonitor> m_netmon;
@@ -82,7 +83,6 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   std::map<Key, shared_ptr<Face>> m_faces;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_NETDEV_BOUND_HPP

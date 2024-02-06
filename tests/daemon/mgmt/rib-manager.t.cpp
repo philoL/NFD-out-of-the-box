@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,12 +31,11 @@
 #include <ndn-cxx/lp/tags.hpp>
 #include <ndn-cxx/mgmt/nfd/face-status.hpp>
 #include <ndn-cxx/mgmt/nfd/rib-entry.hpp>
-#include <ndn-cxx/security/signing-helpers.hpp>
 
+#include <boost/mp11/algorithm.hpp>
 #include <boost/property_tree/info_parser.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 struct ConfigurationStatus
 {
@@ -129,20 +128,22 @@ public:
     , m_fibUpdater(m_rib, m_nfdController)
     , m_manager(m_rib, m_face, m_keyChain, m_nfdController, m_dispatcher)
   {
-    addIdentity(m_anchorId);
-    addIdentity(m_derivedId);
+    auto anchorIdentity = m_keyChain.createIdentity(m_anchorId);
+    saveIdentityCert(m_anchorId, "signer.ndncert", true);
 
-    m_derivedCert = m_keyChain.getPib().getIdentity(m_derivedId).getDefaultKey().getDefaultCertificate();
-    ndn::SignatureInfo signatureInfo;
-    signatureInfo.setValidityPeriod(m_derivedCert.getValidityPeriod());
-    ndn::security::SigningInfo signingInfo(ndn::security::SigningInfo::SIGNER_TYPE_ID,
-                                           m_anchorId, signatureInfo);
-    m_keyChain.sign(m_derivedCert, signingInfo);
-    saveIdentityCertificate(m_anchorId, "signer.ndncert", true);
+    auto derivedKey = m_keyChain.createIdentity(m_derivedId).getDefaultKey();
+    auto derivedSelfSigned = derivedKey.getDefaultCertificate();
+    ndn::security::MakeCertificateOptions opts;
+    opts.validity = derivedSelfSigned.getValidityPeriod();
+    auto derivedCert = m_keyChain.makeCertificate(derivedSelfSigned,
+                                                  ndn::security::signingByIdentity(anchorIdentity),
+                                                  opts);
+    m_keyChain.setDefaultCertificate(derivedKey, derivedCert);
 
     if (m_status.isLocalhostConfigured) {
       m_manager.applyLocalhostConfig(getValidatorConfigSection(), "test");
     }
+
     if (m_status.isLocalhopConfigured) {
       m_manager.enableLocalhop(getLocalhopValidatorConfigSection(), "test");
     }
@@ -156,11 +157,11 @@ public:
       clearRib();
     }
 
-    m_face.onSendInterest.connect([this] (const Interest& interest) {
-      if (interest.getName().isPrefixOf(m_derivedCert.getName())) {
-        if (m_status.isLocalhopConfigured && interest.template getTag<lp::NextHopFaceIdTag>() != nullptr) {
-          m_face.put(m_derivedCert);
-        }
+    m_face.onSendInterest.connect([=] (const Interest& interest) {
+      if (interest.matchesData(derivedCert) &&
+          m_status.isLocalhopConfigured &&
+          interest.getTag<lp::NextHopFaceIdTag>() != nullptr) {
+        m_face.put(derivedCert);
       }
     });
   }
@@ -173,21 +174,22 @@ private:
     advanceClocks(1_ms);
 
     auto replyFibAddCommand = [this] (const Interest& interest) {
-      ControlParameters params(interest.getName().get(-5).blockFromValue());
+      ControlParameters params(interest.getName().at(4).blockFromValue());
       BOOST_CHECK(params.getName() == "/localhost/nfd/rib" || params.getName() == "/localhop/nfd/rib");
-      params.setFaceId(1).setCost(0);
+      params.setFaceId(1)
+            .setCost(0);
       ControlResponse resp;
+      resp.setCode(200)
+          .setBody(params.wireEncode());
 
-      resp.setCode(200).setBody(params.wireEncode());
-      shared_ptr<Data> data = make_shared<Data>(interest.getName());
+      auto data = make_shared<Data>(interest.getName());
       data->setContent(resp.wireEncode());
-
       m_keyChain.sign(*data, ndn::security::SigningInfo(ndn::security::SigningInfo::SIGNER_TYPE_SHA256));
 
-      m_face.getIoService().post([this, data] { m_face.receive(*data); });
+      boost::asio::post(m_face.getIoContext(), [this, data] { m_face.receive(*data); });
     };
 
-    Name commandPrefix("/localhost/nfd/fib/add-nexthop");
+    const Name commandPrefix("/localhost/nfd/fib/add-nexthop");
     for (const auto& command : m_face.sentInterests) {
       if (commandPrefix.isPrefixOf(command.getName())) {
         replyFibAddCommand(command);
@@ -235,11 +237,10 @@ protected:
   ConfigurationStatus m_status;
   Name m_anchorId;
   Name m_derivedId;
-  ndn::security::v2::Certificate m_derivedCert;
 
   ndn::nfd::Controller m_nfdController;
   rib::Rib m_rib;
-  rib::tests::MockFibUpdater m_fibUpdater;
+  MockFibUpdater m_fibUpdater;
   RibManager m_manager;
 };
 
@@ -257,7 +258,7 @@ public:
 
 BOOST_FIXTURE_TEST_CASE(AddTopPrefix, AddTopPrefixFixture)
 {
-  BOOST_CHECK_EQUAL(m_rib.size(), 2);
+  BOOST_REQUIRE_EQUAL(m_rib.size(), 2);
 
   std::vector<Name> ribEntryNames;
   for (auto&& entry : m_rib) {
@@ -303,21 +304,32 @@ public:
   }
 };
 
-using AllFixtures = boost::mpl::vector<
-  UnauthorizedRibManagerFixture,
-  LocalhostAuthorizedRibManagerFixture,
-  LocalhopAuthorizedRibManagerFixture,
-  AuthorizedRibManagerFixture
+template<typename Fixture, typename Format>
+struct FixtureWithFormat : public Fixture
+{
+  static constexpr ndn::security::SignedInterestFormat signedInterestFmt = Format::value;
+};
+
+using AllFixtures = boost::mp11::mp_product<
+  FixtureWithFormat,
+  boost::mp11::mp_list<UnauthorizedRibManagerFixture,
+                       LocalhostAuthorizedRibManagerFixture,
+                       LocalhopAuthorizedRibManagerFixture,
+                       AuthorizedRibManagerFixture>,
+  boost::mp11::mp_list_c<ndn::security::SignedInterestFormat,
+                         ndn::security::SignedInterestFormat::V02,
+                         ndn::security::SignedInterestFormat::V03>
 >;
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(CommandAuthorization, T, AllFixtures, T)
 {
   auto parameters  = this->makeRegisterParameters("/test-authorization", 9527);
-  auto commandHost = this->makeControlCommandRequest("/localhost/nfd/rib/register", parameters);
+  auto commandHost = this->makeControlCommandRequest("/localhost/nfd/rib/register", parameters,
+                                                     T::signedInterestFmt);
   auto commandHop  = this->makeControlCommandRequest("/localhop/nfd/rib/register", parameters,
-                                                     this->m_derivedId);
+                                                     T::signedInterestFmt, this->m_derivedId);
   if (this->m_status.isLocalhopConfigured) {
-    commandHop.setTag(make_shared<lp::IncomingFaceIdTag>(123));
+    commandHop.setTag(std::make_shared<lp::IncomingFaceIdTag>(123));
   }
   auto successResp = this->makeResponse(200, "Success", parameters);
   auto failureResp = ControlResponse(403, "authorization rejected");
@@ -435,7 +447,7 @@ BOOST_AUTO_TEST_CASE(NameTooLong)
   BOOST_REQUIRE_EQUAL(m_responses.size(), 1);
   BOOST_CHECK_EQUAL(checkResponse(0, command.getName(),
                                   ControlResponse(414, "Route prefix cannot exceed " +
-                                                  to_string(Fib::getMaxDepth()) + " components")),
+                                                  std::to_string(Fib::getMaxDepth()) + " components")),
                     CheckResponseResult::OK);
 
   BOOST_CHECK_EQUAL(m_fibUpdater.updates.size(), 0);
@@ -450,7 +462,7 @@ BOOST_FIXTURE_TEST_CASE(RibDataset, UnauthorizedRibManagerFixture)
     rib::Route route;
     route.faceId = ++faceId;
     route.cost = route.faceId * 10;
-    route.expires = nullopt;
+    route.expires = std::nullopt;
     return route;
   };
 
@@ -475,6 +487,7 @@ BOOST_FIXTURE_TEST_CASE(RibDataset, UnauthorizedRibManagerFixture)
   std::vector<ndn::nfd::RibEntry> receivedRecords, expectedRecords;
   for (size_t idx = 0; idx < nEntries; ++idx) {
     ndn::nfd::RibEntry decodedEntry(content.elements()[idx]);
+    BOOST_TEST_INFO_SCOPE(decodedEntry);
     receivedRecords.push_back(decodedEntry);
     actualPrefixes.erase(decodedEntry.getName());
 
@@ -496,8 +509,7 @@ BOOST_FIXTURE_TEST_CASE(RibDataset, UnauthorizedRibManagerFixture)
   }
 
   BOOST_CHECK_EQUAL(actualPrefixes.size(), 0);
-  BOOST_CHECK_EQUAL_COLLECTIONS(receivedRecords.begin(), receivedRecords.end(),
-                                expectedRecords.begin(), expectedRecords.end());
+  BOOST_TEST(receivedRecords == expectedRecords, boost::test_tools::per_element());
 }
 
 BOOST_FIXTURE_TEST_SUITE(FaceMonitor, LocalhostAuthorizedRibManagerFixture)
@@ -564,5 +576,4 @@ BOOST_AUTO_TEST_SUITE_END() // FaceMonitor
 BOOST_AUTO_TEST_SUITE_END() // TestRibManager
 BOOST_AUTO_TEST_SUITE_END() // Mgmt
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

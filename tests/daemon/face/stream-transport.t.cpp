@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,18 +26,17 @@
 #include "tcp-transport-fixture.hpp"
 #include "unix-stream-transport-fixture.hpp"
 
-#include "transport-test-common.hpp"
+#include <boost/asio/read.hpp>
+#include <boost/mp11/list.hpp>
 
-#include <boost/mpl/vector.hpp>
+namespace nfd::tests {
 
-namespace nfd {
-namespace face {
-namespace tests {
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_AUTO_TEST_SUITE(TestStreamTransport)
 
-using StreamTransportFixtures = boost::mpl::vector<
+using StreamTransportFixtures = boost::mp11::mp_list<
   GENERATE_IP_TRANSPORT_FIXTURE_INSTANTIATIONS(TcpTransportFixture),
   UnixStreamTransportFixture
 >;
@@ -92,8 +91,8 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveNormal, T, StreamTransportFixtures, T)
   BOOST_REQUIRE_EQUAL(this->receivedPackets->size(), 2);
   BOOST_CHECK(this->receivedPackets->at(0).packet == pkt1);
   BOOST_CHECK(this->receivedPackets->at(1).packet == pkt2);
-  BOOST_CHECK_EQUAL(this->receivedPackets->at(0).endpoint, 0);
-  BOOST_CHECK_EQUAL(this->receivedPackets->at(1).endpoint, 0);
+  BOOST_CHECK(this->receivedPackets->at(0).endpoint == EndpointId{});
+  BOOST_CHECK(this->receivedPackets->at(1).endpoint == EndpointId{});
 }
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveMultipleSegments, T, StreamTransportFixtures, T)
@@ -141,12 +140,12 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveTooLarge, T, StreamTransportFixtures, T)
 {
   TRANSPORT_TEST_INIT();
 
-  std::vector<uint8_t> bytes(ndn::MAX_NDN_PACKET_SIZE, 0);
-  auto pkt1 = ndn::encoding::makeBinaryBlock(300, bytes.data(), bytes.size() - 6);
+  const std::vector<uint8_t> bytes(ndn::MAX_NDN_PACKET_SIZE, 0);
+  auto pkt1 = ndn::encoding::makeBinaryBlock(300, ndn::make_span(bytes).subspan(6));
   ndn::Buffer buf1(pkt1.begin(), pkt1.end());
   BOOST_REQUIRE_EQUAL(buf1.size(), ndn::MAX_NDN_PACKET_SIZE);
 
-  auto pkt2 = ndn::encoding::makeBinaryBlock(301, bytes.data(), bytes.size());
+  auto pkt2 = ndn::encoding::makeBinaryBlock(301, bytes);
   ndn::Buffer buf2(pkt2.begin(), pkt2.end());
   BOOST_REQUIRE_GT(buf2.size(), ndn::MAX_NDN_PACKET_SIZE);
 
@@ -236,6 +235,4 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(SendQueueLength, T, StreamTransportFixtures, T)
 BOOST_AUTO_TEST_SUITE_END() // TestStreamTransport
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

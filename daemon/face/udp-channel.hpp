@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,50 +30,51 @@
 #include "udp-protocol.hpp"
 
 #include <array>
+#include <map>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 /**
- * \brief Class implementing UDP-based channel to create faces
+ * \brief Class implementing a UDP-based channel to create faces.
  */
-class UdpChannel : public Channel
+class UdpChannel final : public Channel
 {
 public:
   /**
-   * \brief Create a UDP channel on the given \p localEndpoint
+   * \brief Create a UDP channel on the given \p localEndpoint.
    *
-   * To enable creation of faces upon incoming connections,
-   * one needs to explicitly call UdpChannel::listen method.
-   * The created socket is bound to \p localEndpoint.
+   * To enable the creation of faces upon incoming connections, one needs to
+   * explicitly call listen(). The created socket is bound to \p localEndpoint.
    */
   UdpChannel(const udp::Endpoint& localEndpoint,
              time::nanoseconds idleTimeout,
-             bool wantCongestionMarking);
+             bool wantCongestionMarking,
+             size_t defaultMtu);
 
   bool
-  isListening() const override
+  isListening() const final
   {
     return m_socket.is_open();
   }
 
   size_t
-  size() const override
+  size() const final
   {
     return m_channelFaces.size();
   }
 
   /**
-   * \brief Create a unicast UDP face toward \p remoteEndpoint
+   * \brief Create a unicast UDP face toward \p endpointId
    */
   void
-  connect(const udp::Endpoint& remoteEndpoint,
+  connect(const EndpointId& endpointId,
           const FaceParams& params,
           const FaceCreatedCallback& onFaceCreated,
-          const FaceCreationFailedCallback& onConnectFailed);
+          const FaceCreationFailedCallback& onConnectFailed,
+          time::nanoseconds timeout = 8_s) override;
 
   /**
-   * \brief Start listening
+   * \brief Start listening.
    *
    * Enable listening on the local endpoint, waiting for incoming datagrams,
    * and creating a face when a datagram is received from a new remote host.
@@ -92,10 +93,6 @@ private:
   waitForNewPeer(const FaceCreatedCallback& onFaceCreated,
                  const FaceCreationFailedCallback& onReceiveFailed);
 
-  /**
-   * \brief The channel has received a packet from a remote
-   *        endpoint not associated with any UDP face yet
-   */
   void
   handleNewPeer(const boost::system::error_code& error,
                 size_t nBytesReceived,
@@ -113,10 +110,9 @@ private:
   std::array<uint8_t, ndn::MAX_NDN_PACKET_SIZE> m_receiveBuffer;
   std::map<udp::Endpoint, shared_ptr<Face>> m_channelFaces;
   const time::nanoseconds m_idleFaceTimeout; ///< Timeout for automatic closure of idle on-demand faces
-  bool m_wantCongestionMarking;
+  const bool m_wantCongestionMarking;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_UDP_CHANNEL_HPP

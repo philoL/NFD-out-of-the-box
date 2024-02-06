@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,40 +26,41 @@
 #ifndef NFD_TOOLS_NFDC_CS_MODULE_HPP
 #define NFD_TOOLS_NFDC_CS_MODULE_HPP
 
-#include "command-parser.hpp"
 #include "module.hpp"
+#include "command-parser.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/cs-info.hpp>
+
+namespace nfd::tools::nfdc {
 
 using ndn::nfd::CsInfo;
 
-/** \brief provides access to NFD CS management
- *  \sa https://redmine.named-data.net/projects/nfd/wiki/CsMgmt
+/**
+ * \brief Provides access to NFD CS management.
+ * \sa https://redmine.named-data.net/projects/nfd/wiki/CsMgmt
  */
-class CsModule : public Module, noncopyable
+class CsModule : public Module, boost::noncopyable
 {
 public:
-  /** \brief register 'cs config' command
+  /** \brief Register 'cs config' command.
    */
   static void
   registerCommands(CommandParser& parser);
 
-  /** \brief the 'cs config' command
+  /** \brief The 'cs config' command.
    */
   static void
   config(ExecuteContext& ctx);
 
-  /** \brief the 'cs erase' command
+  /** \brief The 'cs erase' command.
    */
   static void
   erase(ExecuteContext& ctx);
 
   void
-  fetchStatus(Controller& controller,
+  fetchStatus(ndn::nfd::Controller& controller,
               const std::function<void()>& onSuccess,
-              const Controller::DatasetFailCallback& onFailure,
+              const ndn::nfd::DatasetFailureCallback& onFailure,
               const CommandOptions& options) override;
 
   void
@@ -78,8 +79,6 @@ private:
   CsInfo m_status;
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_CS_MODULE_HPP

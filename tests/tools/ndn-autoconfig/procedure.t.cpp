@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,16 +29,10 @@
 
 #include <boost/logic/tribool.hpp>
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
-namespace tests {
-
-using namespace ::nfd::tests;
-using nfd::ControlParameters;
+namespace ndn::autoconfig::tests {
 
 template<typename ProcedureClass>
-class ProcedureFixture : public ::nfd::tools::tests::MockNfdMgmtFixture
+class ProcedureFixture : public ::nfd::tests::MockNfdMgmtFixture
 {
 public:
   void
@@ -72,10 +66,10 @@ public:
   /** \param stageName stage name
    *  \param nCalls pointer to a variable which is incremented each time doStart is invoked
    *  \param result expected result, nullopt to cause a failued
-   *  \param io io_service to asynchronously post the result
+   *  \param io io_context to asynchronously post the result
    */
   DummyStage(const std::string& stageName, int* nCalls,
-             const optional<FaceUri>& result, boost::asio::io_service& io)
+             const std::optional<FaceUri>& result, boost::asio::io_context& io)
     : m_stageName(stageName)
     , m_nCalls(nCalls)
     , m_result(result)
@@ -96,7 +90,8 @@ private:
     if (m_nCalls != nullptr) {
       ++(*m_nCalls);
     }
-    m_io.post([this] {
+
+    boost::asio::post(m_io, [this] {
       if (m_result) {
         this->succeed(*m_result);
       }
@@ -109,29 +104,29 @@ private:
 private:
   std::string m_stageName;
   int* m_nCalls;
-  optional<FaceUri> m_result;
-  boost::asio::io_service& m_io;
+  std::optional<FaceUri> m_result;
+  boost::asio::io_context& m_io;
 };
 
-/** \brief two-stage Procedure where the first stage succeeds and the second stage fails
- *
- *  But the second stage shouldn't be invoked after the first stage succeeds.
+/**
+ * Two-stage Procedure where the first stage succeeds and the second stage fails,
+ * but the second stage shouldn't be invoked after the first stage succeeds.
  */
 class ProcedureSuccessFailure : public Procedure
 {
 public:
   ProcedureSuccessFailure(Face& face, KeyChain& keyChain)
     : Procedure(face, keyChain)
-    , m_io(face.getIoService())
+    , m_io(face.getIoContext())
   {
   }
 
 private:
   void
-  makeStages(const Options& options) override
+  makeStages(const Options&) override
   {
     m_stages.push_back(make_unique<DummyStage>("first", &nCalls1, FaceUri("udp://188.7.60.95"), m_io));
-    m_stages.push_back(make_unique<DummyStage>("second", &nCalls2, nullopt, m_io));
+    m_stages.push_back(make_unique<DummyStage>("second", &nCalls2, std::nullopt, m_io));
   }
 
 public:
@@ -139,25 +134,26 @@ public:
   int nCalls2 = 0;
 
 private:
-  boost::asio::io_service& m_io;
+  boost::asio::io_context& m_io;
 };
 
-/** \brief two-stage Procedure where the first stage fails and the second stage succeeds
+/**
+ * Two-stage Procedure where the first stage fails and the second stage succeeds.
  */
 class ProcedureFailureSuccess : public Procedure
 {
 public:
   ProcedureFailureSuccess(Face& face, KeyChain& keyChain)
     : Procedure(face, keyChain)
-    , m_io(face.getIoService())
+    , m_io(face.getIoContext())
   {
   }
 
 private:
   void
-  makeStages(const Options& options) override
+  makeStages(const Options&) override
   {
-    m_stages.push_back(make_unique<DummyStage>("first", &nCalls1, nullopt, m_io));
+    m_stages.push_back(make_unique<DummyStage>("first", &nCalls1, std::nullopt, m_io));
     m_stages.push_back(make_unique<DummyStage>("second", &nCalls2, FaceUri("tcp://40.23.174.71"), m_io));
   }
 
@@ -166,7 +162,7 @@ public:
   int nCalls2 = 0;
 
 private:
-  boost::asio::io_service& m_io;
+  boost::asio::io_context& m_io;
 };
 
 BOOST_AUTO_TEST_SUITE(NdnAutoconfig)
@@ -178,12 +174,12 @@ BOOST_FIXTURE_TEST_CASE(Normal, ProcedureFixture<ProcedureSuccessFailure>)
 
   int nRegisterNdn = 0, nRegisterLocalhopNfd = 0;
   this->processInterest = [&] (const Interest& interest) {
-    optional<ControlParameters> req = parseCommand(interest, "/localhost/nfd/faces/create");
+    auto req = parseCommand(interest, "/localhost/nfd/faces/create");
     if (req) {
       BOOST_REQUIRE(req->hasUri());
       BOOST_CHECK_EQUAL(req->getUri(), "udp4://188.7.60.95:6363");
 
-      ControlParameters resp;
+      nfd::ControlParameters resp;
       resp.setFaceId(1178)
           .setUri("udp4://188.7.60.95:6363")
           .setLocalUri("udp4://110.69.164.68:23197")
@@ -210,7 +206,7 @@ BOOST_FIXTURE_TEST_CASE(Normal, ProcedureFixture<ProcedureSuccessFailure>)
         BOOST_ERROR("unexpected prefix registration " << req->getName());
       }
 
-      ControlParameters resp;
+      nfd::ControlParameters resp;
       resp.setName(req->getName())
           .setFaceId(1178)
           .setOrigin(nfd::ROUTE_ORIGIN_AUTOCONF)
@@ -236,9 +232,9 @@ BOOST_FIXTURE_TEST_CASE(ExistingFace, ProcedureFixture<ProcedureFailureSuccess>)
 
   int nRegisterDefault = 0, nRegisterLocalhopNfd = 0;
   this->processInterest = [&] (const Interest& interest) {
-    optional<ControlParameters> req = parseCommand(interest, "/localhost/nfd/faces/create");
+    auto req = parseCommand(interest, "/localhost/nfd/faces/create");
     if (req) {
-      ControlParameters resp;
+      nfd::ControlParameters resp;
       resp.setFaceId(3146)
           .setUri("tcp4://40.23.174.71:6363")
           .setLocalUri("tcp4://34.213.69.67:14445")
@@ -261,7 +257,7 @@ BOOST_FIXTURE_TEST_CASE(ExistingFace, ProcedureFixture<ProcedureFailureSuccess>)
         BOOST_ERROR("unexpected prefix registration " << req->getName());
       }
 
-      ControlParameters resp;
+      nfd::ControlParameters resp;
       resp.setName(req->getName())
           .setFaceId(3146)
           .setOrigin(nfd::ROUTE_ORIGIN_AUTOCONF)
@@ -284,7 +280,4 @@ BOOST_FIXTURE_TEST_CASE(ExistingFace, ProcedureFixture<ProcedureFailureSuccess>)
 BOOST_AUTO_TEST_SUITE_END() // TestProcedure
 BOOST_AUTO_TEST_SUITE_END() // NdnAutoconfig
 
-} // namespace tests
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig::tests

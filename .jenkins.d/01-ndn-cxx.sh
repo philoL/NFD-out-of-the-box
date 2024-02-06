@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-set -e
+set -exo pipefail
 
-JDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-source "$JDIR"/util.sh
-
-set -x
-
-pushd "${CACHE_DIR:-/tmp}" >/dev/null
+pushd "$CACHE_DIR" >/dev/null
 
 INSTALLED_VERSION=
-if has OSX $NODE_LABELS; then
-    BOOST=$(brew ls --versions boost)
+if [[ $ID == macos ]]; then
+    BOOST=$(brew list --formula --versions boost)
     OLD_BOOST=$(cat boost.txt || :)
     if [[ $OLD_BOOST != $BOOST ]]; then
         echo "$BOOST" > boost.txt
@@ -22,17 +17,15 @@ if [[ -z $INSTALLED_VERSION ]]; then
     INSTALLED_VERSION=$(git -C ndn-cxx rev-parse HEAD 2>/dev/null || echo NONE)
 fi
 
-sudo rm -Rf ndn-cxx-latest
-
-git clone --depth 1 git://github.com/named-data/ndn-cxx ndn-cxx-latest
-
+sudo rm -rf ndn-cxx-latest
+git clone --depth 1 https://github.com/named-data/ndn-cxx.git ndn-cxx-latest
 LATEST_VERSION=$(git -C ndn-cxx-latest rev-parse HEAD 2>/dev/null || echo UNKNOWN)
 
 if [[ $INSTALLED_VERSION != $LATEST_VERSION ]]; then
-    sudo rm -Rf ndn-cxx
+    sudo rm -rf ndn-cxx
     mv ndn-cxx-latest ndn-cxx
 else
-    sudo rm -Rf ndn-cxx-latest
+    sudo rm -rf ndn-cxx-latest
 fi
 
 sudo rm -f /usr/local/bin/ndnsec*
@@ -42,15 +35,16 @@ sudo rm -f /usr/local/lib{,64}/pkgconfig/libndn-cxx.pc
 
 pushd ndn-cxx >/dev/null
 
-./waf configure --color=yes --enable-shared --disable-static --without-osx-keychain
-./waf build --color=yes -j${WAF_JOBS:-1}
-sudo_preserve_env PATH -- ./waf install --color=yes
+./waf --color=yes configure --without-osx-keychain
+./waf --color=yes build
+sudo ./waf --color=yes install
 
 popd >/dev/null
 popd >/dev/null
 
-if has Linux $NODE_LABELS; then
+if [[ $ID_LIKE == *fedora* ]]; then
+    sudo tee /etc/ld.so.conf.d/ndn.conf >/dev/null <<< /usr/local/lib64
+fi
+if [[ $ID_LIKE == *linux* ]]; then
     sudo ldconfig
-elif has FreeBSD10 $NODE_LABELS; then
-    sudo ldconfig -m
 fi

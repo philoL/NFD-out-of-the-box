@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,17 +28,20 @@
 
 #include "core/common.hpp"
 
-namespace nfd {
-namespace udp {
+#include <boost/asio/ip/udp.hpp>
 
-typedef boost::asio::ip::udp::endpoint Endpoint;
+namespace nfd::udp {
 
-/** \brief computes maximum payload size in a UDP packet
+using Endpoint = boost::asio::ip::udp::endpoint;
+
+/**
+ * \brief Computes the maximum payload size in a UDP packet.
  */
 ssize_t
 computeMtu(const Endpoint& localEndpoint);
 
-/** \return default IPv4 multicast group: 224.0.23.170:56363
+/**
+ * \brief Returns the default IPv4 multicast group: `224.0.23.170:56363`
  */
 inline Endpoint
 getDefaultMulticastGroup()
@@ -46,15 +49,16 @@ getDefaultMulticastGroup()
   return {boost::asio::ip::address_v4(0xE00017AA), 56363};
 }
 
-/** \return default IPv6 multicast group: [FF02::1234]:56363
+/**
+ * \brief Returns the default IPv6 multicast group: `[FF02::1234]:56363`
  */
 inline Endpoint
 getDefaultMulticastGroupV6()
 {
-  return {boost::asio::ip::address_v6::from_string("FF02::1234"), 56363};
+  return {boost::asio::ip::address_v6({0xFF, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34}), 56363};
 }
 
-} // namespace udp
-} // namespace nfd
+} // namespace nfd::udp
 
 #endif // NFD_DAEMON_FACE_UDP_PROTOCOL_HPP

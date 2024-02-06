@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,18 +26,15 @@
 #ifndef NFD_TOOLS_NDN_AUTOCONFIG_STAGE_HPP
 #define NFD_TOOLS_NDN_AUTOCONFIG_STAGE_HPP
 
-#include "core/common.hpp"
-
 #include <ndn-cxx/net/face-uri.hpp>
 #include <ndn-cxx/util/signal.hpp>
 
 #include <iostream>
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
-/** \brief a discovery stage
+/**
+ * \brief A discovery stage.
  */
 class Stage : boost::noncopyable
 {
@@ -45,29 +42,26 @@ public:
   class Error : public std::runtime_error
   {
   public:
-    explicit
-    Error(const std::string& what)
-      : std::runtime_error(what)
-    {
-    }
+    using std::runtime_error::runtime_error;
   };
 
-  virtual ~Stage() = default;
+  virtual
+  ~Stage() = default;
 
-  /** \brief get stage name
+  /** \brief Get stage name.
    *  \return stage name as a phrase, typically starting with lower case
    */
   virtual const std::string&
   getName() const = 0;
 
-  /** \brief start running this stage
+  /** \brief Start running this stage.
    *  \throw Error stage is already running
    */
   void
   start();
 
 protected:
-  /** \brief parse HUB FaceUri from string and declare success
+  /** \brief Parse HUB FaceUri from string and declare success.
    */
   void
   provideHubFaceUri(const std::string& s);
@@ -83,24 +77,24 @@ private:
   doStart() = 0;
 
 public:
-  /** \brief signal when a HUB FaceUri is found
+  /**
+   * \brief Signal emitted when a HUB FaceUri is found.
    *
-   *  Argument is HUB FaceUri, may not be canonical.
+   * Argument is HUB FaceUri, may not be canonical.
    */
-  util::Signal<Stage, FaceUri> onSuccess;
+  signal::Signal<Stage, FaceUri> onSuccess;
 
-  /** \brief signal when discovery fails
+  /**
+   * \brief Signal emitted when discovery fails.
    *
-   *  Argument is error message.
+   * Argument is error message.
    */
-  util::Signal<Stage, std::string> onFailure;
+  signal::Signal<Stage, std::string> onFailure;
 
 private:
   bool m_isInProgress = false;
 };
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig
 
 #endif // NFD_TOOLS_NDN_AUTOCONFIG_STAGE_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,7 +23,6 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "fw/strategy.hpp"
 #include "fw/retx-suppression-fixed.hpp"
 #include "fw/retx-suppression-exponential.hpp"
 
@@ -31,11 +30,9 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::fw;
 
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_FIXTURE_TEST_SUITE(TestRetxSuppression, GlobalIoTimeFixture)
@@ -95,7 +92,7 @@ BOOST_AUTO_TEST_CASE(Exponential)
   FaceTable faceTable;
   Forwarder forwarder(faceTable);
   Pit& pit = forwarder.getPit();
-  RetxSuppressionExponential rs(10_ms, 3.0, 100_ms);
+  RetxSuppressionExponential rs(10_ms, 100_ms, 3.0);
 
   shared_ptr<DummyFace> face1 = make_shared<DummyFace>();
   shared_ptr<DummyFace> face2 = make_shared<DummyFace>();
@@ -164,7 +161,7 @@ BOOST_AUTO_TEST_CASE(ExponentialPerUpstream)
   FaceTable faceTable;
   Forwarder forwarder(faceTable);
   Pit& pit = forwarder.getPit();
-  RetxSuppressionExponential rs(10_ms, 3.0, 100_ms);
+  RetxSuppressionExponential rs(10_ms, 100_ms, 3.0);
 
   shared_ptr<DummyFace> face1 = make_shared<DummyFace>();
   shared_ptr<DummyFace> face2 = make_shared<DummyFace>();
@@ -203,6 +200,4 @@ BOOST_AUTO_TEST_CASE(ExponentialPerUpstream)
 BOOST_AUTO_TEST_SUITE_END() // TestRetxSuppression
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

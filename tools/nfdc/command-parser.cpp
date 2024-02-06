@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,19 +24,22 @@
  */
 
 #include "command-parser.hpp"
-#include "format-helpers.hpp"
+
+#include "cs-module.hpp"
+#include "face-module.hpp"
+#include "rib-module.hpp"
+#include "status.hpp"
+#include "strategy-choice-module.hpp"
 
 #include <ndn-cxx/util/logger.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 NDN_LOG_INIT(nfdc.CommandParser);
 
-static_assert(std::is_same<std::underlying_type<AvailableIn>::type,
-                           std::underlying_type<ParseMode>::type>::value,
-              "AvailableIn and ParseMode must be declared with same underlying type");
+static_assert(std::is_same_v<std::underlying_type_t<AvailableIn>,
+                             std::underlying_type_t<ParseMode>>,
+              "AvailableIn and ParseMode must be declared with the same underlying type");
 
 std::ostream&
 operator<<(std::ostream& os, AvailableIn modes)
@@ -72,7 +75,7 @@ operator<<(std::ostream& os, ParseMode mode)
 
 CommandParser&
 CommandParser::addCommand(const CommandDefinition& def, const ExecuteCommand& execute,
-                          std::underlying_type<AvailableIn>::type modes)
+                          std::underlying_type_t<AvailableIn> modes)
 {
   BOOST_ASSERT(modes != AVAILABLE_IN_NONE);
 
@@ -94,11 +97,11 @@ CommandParser::addAlias(const std::string& noun, const std::string& verb, const 
 }
 
 std::vector<const CommandDefinition*>
-CommandParser::listCommands(const std::string& noun, ParseMode mode) const
+CommandParser::listCommands(std::string_view noun, ParseMode mode) const
 {
   std::vector<const CommandDefinition*> results;
   for (auto i : m_commandOrder) {
-    const Command& command = *i->second;
+    const auto& command = *i->second;
     if ((command.modes & static_cast<AvailableIn>(mode)) != 0 &&
         (noun.empty() || noun == command.def.getNoun())) {
       results.push_back(&command.def);
@@ -126,9 +129,17 @@ CommandParser::parse(const std::vector<std::string>& tokens, ParseMode mode) con
   NDN_LOG_TRACE("found command noun=" << def.getNoun() << " verb=" << def.getVerb());
 
   size_t nConsumed = std::min<size_t>(2, tokens.size());
-  return std::make_tuple(def.getNoun(), def.getVerb(), def.parse(tokens, nConsumed), i->second->execute);
+  return {def.getNoun(), def.getVerb(), def.parse(tokens, nConsumed), i->second->execute};
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+void
+registerCommands(CommandParser& parser)
+{
+  registerStatusCommands(parser);
+  FaceModule::registerCommands(parser);
+  RibModule::registerCommands(parser);
+  CsModule::registerCommands(parser);
+  StrategyChoiceModule::registerCommands(parser);
+}
+
+} // namespace nfd::tools::nfdc

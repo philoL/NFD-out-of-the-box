@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,29 +30,29 @@
 #include "tests/test-common.hpp"
 #include "test-ip.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
-/** \brief Check that a transport has all its static properties set after initialization
+/**
+ * \brief Check that a transport has all its static properties set after initialization.
  *
- *  This check shall be inserted to the StaticProperties test case for each transport,
- *  in addition to checking the values of properties.
- *  When a new static property is defined, this test case shall be updated.
- *  Thus, if a transport forgets to set a static property, this check would fail.
+ * This check shall be inserted to the StaticProperties test case for each transport,
+ * in addition to checking the values of properties.
+ * When a new static property is defined, this test case shall be updated.
+ * Thus, if a transport forgets to set a static property, this check would fail.
  */
 inline void
-checkStaticPropertiesInitialized(const Transport& transport)
+checkStaticPropertiesInitialized(const face::Transport& transport)
 {
-  BOOST_CHECK(!transport.getLocalUri().getScheme().empty());
-  BOOST_CHECK(!transport.getRemoteUri().getScheme().empty());
-  BOOST_CHECK_NE(transport.getScope(), ndn::nfd::FACE_SCOPE_NONE);
-  BOOST_CHECK_NE(transport.getPersistency(), ndn::nfd::FACE_PERSISTENCY_NONE);
-  BOOST_CHECK_NE(transport.getLinkType(), ndn::nfd::LINK_TYPE_NONE);
-  BOOST_CHECK_NE(transport.getMtu(), MTU_INVALID);
+  BOOST_TEST(transport.getLocalUri().getScheme().empty() == false);
+  BOOST_TEST(transport.getRemoteUri().getScheme().empty() == false);
+  BOOST_TEST(transport.getScope() != ndn::nfd::FACE_SCOPE_NONE);
+  BOOST_TEST(transport.getPersistency() != ndn::nfd::FACE_PERSISTENCY_NONE);
+  BOOST_TEST(transport.getLinkType() != ndn::nfd::LINK_TYPE_NONE);
+  BOOST_TEST(transport.getMtu() != face::MTU_INVALID);
 }
 
-/** \brief Generic wrapper for transport fixtures that require an IP address
+/**
+ * \brief Generic wrapper for transport fixtures that require an IP address.
  */
 template<typename TransportFixtureBase,
          AddressFamily AF = AddressFamily::Any,
@@ -63,34 +63,38 @@ class IpTransportFixture : public TransportFixtureBase
 protected:
   IpTransportFixture()
   {
+    std::tie(interface, address) = getTestInterfaceAndIp(AF, AS, MC);
+
     BOOST_TEST_MESSAGE("Testing with AddressFamily=" << AF <<
                        " AddressScope=" << AS <<
                        " MulticastInterface=" << MC <<
-                       " TestIp=" << address);
+                       " TestInterface=" << (interface == nullptr ? "N/A" : interface->getName()) <<
+                       " TestIp=" << (address.is_unspecified() ? "N/A" : address.to_string()));
   }
 
-  std::pair<bool, std::string>
+  [[nodiscard]] std::tuple<bool, std::string>
   checkPreconditions() const
   {
-    return {!address.is_unspecified(), "no appropriate IP address available"};
+    return {interface != nullptr && !address.is_unspecified(),
+            "no appropriate interface or IP address available"};
   }
 
   template<typename... Args>
   void
   initialize(Args&&... args)
   {
-    TransportFixtureBase::initialize(address, std::forward<Args>(args)...);
+    TransportFixtureBase::initialize(interface, address, std::forward<Args>(args)...);
   }
 
 protected:
   static constexpr AddressFamily addressFamily = AF;
   static constexpr AddressScope addressScope = AS;
-  const boost::asio::ip::address address = getTestIp(AF, AS, MC);
+
+  shared_ptr<const ndn::net::NetworkInterface> interface;
+  boost::asio::ip::address address;
 };
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #define GENERATE_IP_TRANSPORT_FIXTURE_INSTANTIATIONS(F) \
   IpTransportFixture<F, AddressFamily::V4, AddressScope::Loopback>,  \
@@ -101,9 +105,9 @@ protected:
 
 #define TRANSPORT_TEST_CHECK_PRECONDITIONS() \
   do { \
-    auto result = this->checkPreconditions(); \
-    if (!result.first) { \
-      BOOST_WARN_MESSAGE(false, "skipping test case: " << result.second); \
+    auto [ok, reason] = this->checkPreconditions(); \
+    if (!ok) { \
+      BOOST_WARN_MESSAGE(false, "skipping test case: " << reason); \
       return; \
     } \
   } while (false)

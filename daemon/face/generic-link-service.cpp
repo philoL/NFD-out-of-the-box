@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,13 +25,13 @@
 
 #include "generic-link-service.hpp"
 
+#include <ndn-cxx/lp/fields.hpp>
 #include <ndn-cxx/lp/pit-token.hpp>
 #include <ndn-cxx/lp/tags.hpp>
 
 #include <cmath>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(GenericLinkService);
 
@@ -44,12 +44,9 @@ GenericLinkService::GenericLinkService(const GenericLinkService::Options& option
   , m_fragmenter(m_options.fragmenterOptions, this)
   , m_reassembler(m_options.reassemblerOptions, this)
   , m_reliability(m_options.reliabilityOptions, this)
-  , m_lastSeqNo(-2)
-  , m_nextMarkTime(time::steady_clock::TimePoint::max())
-  , m_nMarkedSinceInMarkingState(0)
 {
-  m_reassembler.beforeTimeout.connect([this] (auto...) { ++this->nReassemblyTimeouts; });
-  m_reliability.onDroppedInterest.connect([this] (const auto& i) { this->notifyDroppedInterest(i); });
+  m_reassembler.beforeTimeout.connect([this] (auto&&...) { ++nReassemblyTimeouts; });
+  m_reliability.onDroppedInterest.connect([this] (const auto& i) { notifyDroppedInterest(i); });
   nReassembling.observe(&m_reassembler);
 }
 
@@ -62,18 +59,38 @@ GenericLinkService::setOptions(const GenericLinkService::Options& options)
   m_reliability.setOptions(m_options.reliabilityOptions);
 }
 
-void
-GenericLinkService::requestIdlePacket(const EndpointId& endpointId)
+ssize_t
+GenericLinkService::getEffectiveMtu() const
 {
-  // No need to request Acks to attach to this packet from LpReliability, as they are already
-  // attached in sendLpPacket
-  this->sendLpPacket({}, endpointId);
+  // Since MTU_UNLIMITED is negative, it will implicitly override any finite override MTU
+  return std::min(m_options.overrideMtu, getTransport()->getMtu());
+}
+
+bool
+GenericLinkService::canOverrideMtuTo(ssize_t mtu) const
+{
+  // Not allowed to override unlimited transport MTU
+  if (getTransport()->getMtu() == MTU_UNLIMITED) {
+    return false;
+  }
+
+  // Override MTU must be at least MIN_MTU (also implicitly forbids MTU_UNLIMITED and MTU_INVALID)
+  return mtu >= MIN_MTU;
 }
 
 void
-GenericLinkService::sendLpPacket(lp::Packet&& pkt, const EndpointId& endpointId)
+GenericLinkService::requestIdlePacket()
 {
-  const ssize_t mtu = this->getTransport()->getMtu();
+  // No need to request Acks to attach to this packet from LpReliability, as they are already
+  // attached in sendLpPacket
+  NFD_LOG_FACE_TRACE("IDLE packet requested");
+  this->sendLpPacket({});
+}
+
+void
+GenericLinkService::sendLpPacket(lp::Packet&& pkt)
+{
+  const ssize_t mtu = getEffectiveMtu();
 
   if (m_options.reliabilityOptions.isEnabled) {
     m_reliability.piggyback(pkt, mtu);
@@ -85,42 +102,50 @@ GenericLinkService::sendLpPacket(lp::Packet&& pkt, const EndpointId& endpointId)
 
   auto block = pkt.wireEncode();
   if (mtu != MTU_UNLIMITED && block.size() > static_cast<size_t>(mtu)) {
-    ++this->nOutOverMtu;
+    ++nOutOverMtu;
     NFD_LOG_FACE_WARN("attempted to send packet over MTU limit");
     return;
   }
-  this->sendPacket(block, endpointId);
+  this->sendPacket(block);
 }
 
 void
-GenericLinkService::doSendInterest(const Interest& interest, const EndpointId& endpointId)
+GenericLinkService::doSendInterest(const Interest& interest)
 {
   lp::Packet lpPacket(interest.wireEncode());
 
   encodeLpFields(interest, lpPacket);
 
-  this->sendNetPacket(std::move(lpPacket), endpointId, true);
+  this->sendNetPacket(std::move(lpPacket), true);
 }
 
 void
-GenericLinkService::doSendData(const Data& data, const EndpointId& endpointId)
+GenericLinkService::doSendData(const Data& data)
 {
   lp::Packet lpPacket(data.wireEncode());
 
   encodeLpFields(data, lpPacket);
 
-  this->sendNetPacket(std::move(lpPacket), endpointId, false);
+  this->sendNetPacket(std::move(lpPacket), false);
 }
 
 void
-GenericLinkService::doSendNack(const lp::Nack& nack, const EndpointId& endpointId)
+GenericLinkService::doSendNack(const lp::Nack& nack)
 {
   lp::Packet lpPacket(nack.getInterest().wireEncode());
   lpPacket.add<lp::NackField>(nack.getHeader());
 
   encodeLpFields(nack, lpPacket);
 
-  this->sendNetPacket(std::move(lpPacket), endpointId, false);
+  this->sendNetPacket(std::move(lpPacket), false);
+}
+
+void
+GenericLinkService::assignSequences(std::vector<lp::Packet>& pkts)
+{
+  std::for_each(pkts.begin(), pkts.end(), [this] (lp::Packet& pkt) {
+    pkt.set<lp::SequenceField>(++m_lastSeqNo);
+  });
 }
 
 void
@@ -157,10 +182,10 @@ GenericLinkService::encodeLpFields(const ndn::PacketBase& netPkt, lp::Packet& lp
 }
 
 void
-GenericLinkService::sendNetPacket(lp::Packet&& pkt, const EndpointId& endpointId, bool isInterest)
+GenericLinkService::sendNetPacket(lp::Packet&& pkt, bool isInterest)
 {
   std::vector<lp::Packet> frags;
-  ssize_t mtu = this->getTransport()->getMtu();
+  ssize_t mtu = getEffectiveMtu();
 
   // Make space for feature fields in fragments
   if (m_options.reliabilityOptions.isEnabled && mtu != MTU_UNLIMITED) {
@@ -171,14 +196,15 @@ GenericLinkService::sendNetPacket(lp::Packet&& pkt, const EndpointId& endpointId
     mtu -= CONGESTION_MARK_SIZE;
   }
 
-  BOOST_ASSERT(mtu == MTU_UNLIMITED || mtu > 0);
+  // An MTU of 0 is allowed but will cause all packets to be dropped before transmission
+  BOOST_ASSERT(mtu == MTU_UNLIMITED || mtu >= 0);
 
   if (m_options.allowFragmentation && mtu != MTU_UNLIMITED) {
     bool isOk = false;
     std::tie(isOk, frags) = m_fragmenter.fragmentPacket(pkt, mtu);
     if (!isOk) {
       // fragmentation failed (warning is logged by LpFragmenter)
-      ++this->nFragmentationErrors;
+      ++nFragmentationErrors;
       return;
     }
   }
@@ -198,8 +224,8 @@ GenericLinkService::sendNetPacket(lp::Packet&& pkt, const EndpointId& endpointId
     BOOST_ASSERT(!frags.front().has<lp::FragCountField>());
   }
 
-  // Only assign sequences to fragments if packet contains more than 1 fragment
-  if (frags.size() > 1) {
+  // Only assign sequences to fragments if reliability enabled or if packet contains >1 fragment
+  if (m_options.reliabilityOptions.isEnabled || frags.size() > 1) {
     // Assign sequences to all fragments
     this->assignSequences(frags);
   }
@@ -209,20 +235,8 @@ GenericLinkService::sendNetPacket(lp::Packet&& pkt, const EndpointId& endpointId
   }
 
   for (lp::Packet& frag : frags) {
-    this->sendLpPacket(std::move(frag), endpointId);
+    this->sendLpPacket(std::move(frag));
   }
-}
-
-void
-GenericLinkService::assignSequence(lp::Packet& pkt)
-{
-  pkt.set<lp::SequenceField>(++m_lastSeqNo);
-}
-
-void
-GenericLinkService::assignSequences(std::vector<lp::Packet>& pkts)
-{
-  std::for_each(pkts.begin(), pkts.end(), [this] (auto& pkt) { this->assignSequence(pkt); });
 }
 
 void
@@ -244,7 +258,7 @@ GenericLinkService::checkCongestionLevel(lp::Packet& pkt)
   if (static_cast<size_t>(sendQueueLength) > m_options.defaultCongestionThreshold) {
     const auto now = time::steady_clock::now();
 
-    if (m_nextMarkTime == time::steady_clock::TimePoint::max()) {
+    if (m_nextMarkTime == time::steady_clock::time_point::max()) {
       m_nextMarkTime = now + m_options.baseCongestionMarkingInterval;
     }
     // Mark packet if sendQueue stays above target for one interval
@@ -262,10 +276,10 @@ GenericLinkService::checkCongestionLevel(lp::Packet& pkt)
       m_nextMarkTime += interval;
     }
   }
-  else if (m_nextMarkTime != time::steady_clock::TimePoint::max()) {
+  else if (m_nextMarkTime != time::steady_clock::time_point::max()) {
     // Congestion incident has ended, so reset
     NFD_LOG_FACE_DEBUG("Send queue length dropped below congestion threshold");
-    m_nextMarkTime = time::steady_clock::TimePoint::max();
+    m_nextMarkTime = time::steady_clock::time_point::max();
     m_nMarkedSinceInMarkingState = 0;
   }
 }
@@ -277,7 +291,11 @@ GenericLinkService::doReceivePacket(const Block& packet, const EndpointId& endpo
     lp::Packet pkt(packet);
 
     if (m_options.reliabilityOptions.isEnabled) {
-      m_reliability.processIncomingPacket(pkt);
+      if (!m_reliability.processIncomingPacket(pkt)) {
+        NFD_LOG_FACE_TRACE("received duplicate fragment: DROP");
+        ++nDuplicateSequence;
+        return;
+      }
     }
 
     if (!pkt.has<lp::FragmentField>()) {
@@ -291,16 +309,13 @@ GenericLinkService::doReceivePacket(const Block& packet, const EndpointId& endpo
       return;
     }
 
-    bool isReassembled = false;
-    Block netPkt;
-    lp::Packet firstPkt;
-    std::tie(isReassembled, netPkt, firstPkt) = m_reassembler.receiveFragment(endpoint, pkt);
+    auto [isReassembled, netPkt, firstPkt] = m_reassembler.receiveFragment(endpoint, pkt);
     if (isReassembled) {
       this->decodeNetPacket(netPkt, firstPkt, endpoint);
     }
   }
   catch (const tlv::Error& e) {
-    ++this->nInLpInvalid;
+    ++nInLpInvalid;
     NFD_LOG_FACE_WARN("packet parse error (" << e.what() << "): DROP");
   }
 }
@@ -323,13 +338,13 @@ GenericLinkService::decodeNetPacket(const Block& netPkt, const lp::Packet& first
         this->decodeData(netPkt, firstPkt, endpointId);
         break;
       default:
-        ++this->nInNetInvalid;
+        ++nInNetInvalid;
         NFD_LOG_FACE_WARN("unrecognized network-layer packet TLV-TYPE " << netPkt.type() << ": DROP");
         return;
     }
   }
   catch (const tlv::Error& e) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("packet parse error (" << e.what() << "): DROP");
   }
 }
@@ -355,7 +370,7 @@ GenericLinkService::decodeInterest(const Block& netPkt, const lp::Packet& firstP
   }
 
   if (firstPkt.has<lp::CachePolicyField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received CachePolicy with Interest: DROP");
     return;
   }
@@ -378,7 +393,7 @@ GenericLinkService::decodeInterest(const Block& netPkt, const lp::Packet& firstP
   }
 
   if (firstPkt.has<lp::PrefixAnnouncementField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received PrefixAnnouncement with Interest: DROP");
     return;
   }
@@ -400,13 +415,13 @@ GenericLinkService::decodeData(const Block& netPkt, const lp::Packet& firstPkt,
   auto data = make_shared<Data>(netPkt);
 
   if (firstPkt.has<lp::NackField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received Nack with Data: DROP");
     return;
   }
 
   if (firstPkt.has<lp::NextHopFaceIdField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received NextHopFaceId with Data: DROP");
     return;
   }
@@ -427,7 +442,7 @@ GenericLinkService::decodeData(const Block& netPkt, const lp::Packet& firstPkt,
   }
 
   if (firstPkt.has<lp::NonDiscoveryField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received NonDiscovery with Data: DROP");
     return;
   }
@@ -455,13 +470,13 @@ GenericLinkService::decodeNack(const Block& netPkt, const lp::Packet& firstPkt,
   nack.setHeader(firstPkt.get<lp::NackField>());
 
   if (firstPkt.has<lp::NextHopFaceIdField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received NextHopFaceId with Nack: DROP");
     return;
   }
 
   if (firstPkt.has<lp::CachePolicyField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received CachePolicy with Nack: DROP");
     return;
   }
@@ -475,13 +490,13 @@ GenericLinkService::decodeNack(const Block& netPkt, const lp::Packet& firstPkt,
   }
 
   if (firstPkt.has<lp::NonDiscoveryField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received NonDiscovery with Nack: DROP");
     return;
   }
 
   if (firstPkt.has<lp::PrefixAnnouncementField>()) {
-    ++this->nInNetInvalid;
+    ++nInNetInvalid;
     NFD_LOG_FACE_WARN("received PrefixAnnouncement with Nack: DROP");
     return;
   }
@@ -489,5 +504,4 @@ GenericLinkService::decodeNack(const Block& netPkt, const lp::Packet& firstPkt,
   this->receiveNack(nack, endpointId);
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,11 +28,9 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace rib {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::rib;
 
 BOOST_AUTO_TEST_SUITE(Readvertise)
 BOOST_FIXTURE_TEST_SUITE(TestClientToNlsrReadvertisePolicy, GlobalIoFixture)
@@ -47,7 +45,7 @@ BOOST_AUTO_TEST_CASE(ReadvertiseClientRoute)
   RibRouteRef rrr{entry, routeIt};
 
   ClientToNlsrReadvertisePolicy policy;
-  optional<ReadvertiseAction> action = policy.handleNewRoute(rrr);
+  std::optional<ReadvertiseAction> action = policy.handleNewRoute(rrr);
 
   BOOST_REQUIRE(action);
   BOOST_CHECK_EQUAL(action->prefix, "/test/A");
@@ -64,7 +62,7 @@ BOOST_AUTO_TEST_CASE(DontReadvertiseRoute)
   RibRouteRef rrr{entry, routeIt};
 
   ClientToNlsrReadvertisePolicy policy;
-  optional<ReadvertiseAction> action = policy.handleNewRoute(rrr);
+  std::optional<ReadvertiseAction> action = policy.handleNewRoute(rrr);
 
   BOOST_CHECK(!action);
 }
@@ -72,6 +70,4 @@ BOOST_AUTO_TEST_CASE(DontReadvertiseRoute)
 BOOST_AUTO_TEST_SUITE_END() // TestClientToNlsrReadvertisePolicy
 BOOST_AUTO_TEST_SUITE_END() // Readvertise
 
-} // namespace tests
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::tests

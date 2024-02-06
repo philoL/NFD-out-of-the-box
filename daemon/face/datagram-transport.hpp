@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,25 +32,30 @@
 
 #include <array>
 
-namespace nfd {
-namespace face {
+#include <boost/asio/defer.hpp>
+
+namespace nfd::face {
 
 struct Unicast {};
 struct Multicast {};
 
-/** \brief Implements Transport for datagram-based protocols.
+/**
+ * \brief Implements a Transport for datagram-based protocols.
  *
- *  \tparam Protocol a datagram-based protocol in Boost.Asio
+ * \tparam Protocol A datagram-based protocol in Boost.Asio
+ * \tparam Addressing The addressing mode, either Unicast or Multicast
  */
-template<class Protocol, class Addressing = Unicast>
+template<class Protocol, class Addressing>
 class DatagramTransport : public Transport
 {
 public:
-  typedef Protocol protocol;
+  using protocol = Protocol;
+  using addressing = Addressing;
 
-  /** \brief Construct datagram transport.
+  /**
+   * \brief Construct datagram transport.
    *
-   *  \param socket Protocol-specific socket for the created transport
+   * \param socket Protocol-specific socket for the created transport
    */
   explicit
   DatagramTransport(typename protocol::socket&& socket);
@@ -58,18 +63,18 @@ public:
   ssize_t
   getSendQueueLength() override;
 
-  /** \brief Receive datagram, translate buffer into packet, deliver to parent class.
+  /**
+   * \brief Receive datagram, translate buffer into packet, deliver to parent class.
    */
   void
-  receiveDatagram(const uint8_t* buffer, size_t nBytesReceived,
-                  const boost::system::error_code& error);
+  receiveDatagram(span<const uint8_t> buffer, const boost::system::error_code& error);
 
 protected:
   void
   doClose() override;
 
   void
-  doSend(const Block& packet, const EndpointId& endpoint) override;
+  doSend(const Block& packet) override;
 
   void
   handleSend(const boost::system::error_code& error, size_t nBytesSent);
@@ -86,9 +91,6 @@ protected:
   void
   resetRecentlyReceived();
 
-  static EndpointId
-  makeEndpointId(const typename protocol::endpoint& ep);
-
 protected:
   typename protocol::socket m_socket;
   typename protocol::endpoint m_sender;
@@ -97,14 +99,13 @@ protected:
 
 private:
   std::array<uint8_t, ndn::MAX_NDN_PACKET_SIZE> m_receiveBuffer;
-  bool m_hasRecentlyReceived;
+  bool m_hasRecentlyReceived = false;
 };
 
 
 template<class T, class U>
 DatagramTransport<T, U>::DatagramTransport(typename DatagramTransport::protocol::socket&& socket)
   : m_socket(std::move(socket))
-  , m_hasRecentlyReceived(false)
 {
   boost::asio::socket_base::send_buffer_size sendBufferSizeOption;
   boost::system::error_code error;
@@ -150,14 +151,14 @@ DatagramTransport<T, U>::doClose()
 
   // Ensure that the Transport stays alive at least until
   // all pending handlers are dispatched
-  getGlobalIoService().post([this] {
+  boost::asio::defer(getGlobalIoService(), [this] {
     this->setState(TransportState::CLOSED);
   });
 }
 
 template<class T, class U>
 void
-DatagramTransport<T, U>::doSend(const Block& packet, const EndpointId&)
+DatagramTransport<T, U>::doSend(const Block& packet)
 {
   NFD_LOG_FACE_TRACE(__func__);
 
@@ -170,37 +171,38 @@ DatagramTransport<T, U>::doSend(const Block& packet, const EndpointId&)
 
 template<class T, class U>
 void
-DatagramTransport<T, U>::receiveDatagram(const uint8_t* buffer, size_t nBytesReceived,
+DatagramTransport<T, U>::receiveDatagram(span<const uint8_t> buffer,
                                          const boost::system::error_code& error)
 {
   if (error)
     return processErrorCode(error);
 
-  NFD_LOG_FACE_TRACE("Received: " << nBytesReceived << " bytes from " << m_sender);
+  NFD_LOG_FACE_TRACE("Received: " << buffer.size() << " bytes from " << m_sender);
 
-  bool isOk = false;
-  Block element;
-  std::tie(isOk, element) = Block::fromBuffer(buffer, nBytesReceived);
+  auto [isOk, element] = Block::fromBuffer(buffer);
   if (!isOk) {
     NFD_LOG_FACE_WARN("Failed to parse incoming packet from " << m_sender);
     // This packet won't extend the face lifetime
     return;
   }
-  if (element.size() != nBytesReceived) {
+  if (element.size() != buffer.size()) {
     NFD_LOG_FACE_WARN("Received datagram size and decoded element size don't match");
     // This packet won't extend the face lifetime
     return;
   }
   m_hasRecentlyReceived = true;
 
-  this->receive(element, makeEndpointId(m_sender));
+  if constexpr (std::is_same_v<addressing, Multicast>)
+    this->receive(element, m_sender);
+  else
+    this->receive(element);
 }
 
 template<class T, class U>
 void
 DatagramTransport<T, U>::handleReceive(const boost::system::error_code& error, size_t nBytesReceived)
 {
-  receiveDatagram(m_receiveBuffer.data(), nBytesReceived, error);
+  receiveDatagram(ndn::make_span(m_receiveBuffer).first(nBytesReceived), error);
 
   if (m_socket.is_open())
     m_socket.async_receive_from(boost::asio::buffer(m_receiveBuffer), m_sender,
@@ -257,14 +259,6 @@ DatagramTransport<T, U>::resetRecentlyReceived()
   m_hasRecentlyReceived = false;
 }
 
-template<class T, class U>
-EndpointId
-DatagramTransport<T, U>::makeEndpointId(const typename protocol::endpoint&)
-{
-  return 0;
-}
-
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_DATAGRAM_TRANSPORT_HPP

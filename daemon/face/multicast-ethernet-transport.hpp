@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,17 +28,16 @@
 
 #include "ethernet-transport.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 /**
- * @brief A multicast Transport that uses raw Ethernet II frames
+ * @brief A multicast Transport that uses raw Ethernet II frames.
  */
 class MulticastEthernetTransport final : public EthernetTransport
 {
 public:
   /**
-   * @brief Creates an Ethernet-based transport for multicast communication
+   * @brief Creates an Ethernet-based transport for multicast communication.
    */
   MulticastEthernetTransport(const ndn::net::NetworkInterface& localEndpoint,
                              const ethernet::Address& mcastAddress,
@@ -46,7 +45,7 @@ public:
 
 private:
   /**
-   * @brief Enables receiving frames addressed to our MAC multicast group
+   * @brief Enables receiving frames addressed to our MAC multicast group.
    */
   void
   joinMulticastGroup();
@@ -57,7 +56,6 @@ private:
 #endif
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_MULTICAST_ETHERNET_TRANSPORT_HPP

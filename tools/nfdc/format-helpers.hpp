@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,9 +28,7 @@
 
 #include "core/common.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 namespace xml {
 
@@ -45,12 +43,12 @@ struct Text
   const std::string& s;
 };
 
-/** \brief print XML text with special character represented as predefined entities
+/** \brief Print XML text with special character represented as predefined entities.
  */
 std::ostream&
 operator<<(std::ostream& os, const Text& text);
 
-/** \brief print true as an empty element and false as nothing
+/** \brief Print true as an empty element and false as nothing.
  */
 struct Flag
 {
@@ -73,13 +71,13 @@ formatDuration(time::nanoseconds d);
  *  Definition of this format: https://www.w3.org/TR/xmlschema11-2/#dateTime
  */
 std::string
-formatTimestamp(time::system_clock::TimePoint t);
+formatTimestamp(time::system_clock::time_point t);
 
 } // namespace xml
 
 namespace text {
 
-/** \brief print a number of whitespaces
+/** \brief Print a number of whitespaces.
  */
 struct Spaces
 {
@@ -89,7 +87,7 @@ struct Spaces
 std::ostream&
 operator<<(std::ostream& os, const Spaces& spaces);
 
-/** \brief print different string on first and subsequent usage
+/** \brief Print different string on first and subsequent usage.
  *
  *  \code
  *  Separator sep(",");
@@ -102,10 +100,10 @@ operator<<(std::ostream& os, const Spaces& spaces);
 class Separator : noncopyable
 {
 public:
-  Separator(const std::string& first, const std::string& subsequent);
+  Separator(std::string_view first, std::string_view subsequent);
 
   explicit
-  Separator(const std::string& subsequent);
+  Separator(std::string_view subsequent);
 
   int
   getCount() const
@@ -114,9 +112,9 @@ public:
   }
 
 private:
-  std::string m_first;
-  std::string m_subsequent;
-  int m_count;
+  const std::string m_first;
+  const std::string m_subsequent;
+  int m_count = 0;
 
   friend std::ostream& operator<<(std::ostream& os, Separator& sep);
 };
@@ -124,7 +122,7 @@ private:
 std::ostream&
 operator<<(std::ostream& os, Separator& sep);
 
-/** \brief print attributes of an item
+/** \brief Print attributes of an item.
  *
  *  \code
  *  ItemAttributes ia(wantMultiLine, 3);
@@ -143,7 +141,7 @@ operator<<(std::ostream& os, Separator& sep);
 class ItemAttributes : noncopyable
 {
 public:
-  /** \brief constructor
+  /** \brief Constructor.
    *  \param wantMultiLine true to select multi-line style, false to use single-line style
    *  \param maxAttributeWidth maximum width of attribute names, for alignment in multi-line style
    */
@@ -166,9 +164,9 @@ public:
   end() const;
 
 private:
-  bool m_wantMultiLine;
-  int m_maxAttributeWidth;
-  int m_count;
+  const bool m_wantMultiLine;
+  const int m_maxAttributeWidth;
+  int m_count = 0;
 
   friend std::ostream& operator<<(std::ostream& os, const ItemAttributes::Attribute& attr);
 };
@@ -176,7 +174,7 @@ private:
 std::ostream&
 operator<<(std::ostream& os, const ItemAttributes::Attribute& attr);
 
-/** \brief print boolean as 'on' or 'off'
+/** \brief Print boolean as 'on' or 'off'.
  */
 struct OnOff
 {
@@ -186,7 +184,7 @@ struct OnOff
 std::ostream&
 operator<<(std::ostream& os, OnOff v);
 
-/** \brief print boolean as 'yes' or 'no'
+/** \brief Print boolean as 'yes' or 'no'.
  */
 struct YesNo
 {
@@ -257,17 +255,15 @@ template<typename OutputPrecision>
 std::string
 formatDuration(time::nanoseconds d, bool isLong = false)
 {
-  return to_string(time::duration_cast<OutputPrecision>(d).count()) +
+  return std::to_string(time::duration_cast<OutputPrecision>(d).count()) +
          (isLong ? " " : "") + detail::getTimeUnit<OutputPrecision>(isLong);
 }
 
 std::string
-formatTimestamp(time::system_clock::TimePoint t);
+formatTimestamp(time::system_clock::time_point t);
 
 } // namespace text
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_FORMAT_HELPERS_HPP

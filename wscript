@@ -1,6 +1,6 @@
 # -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 """
-Copyright (c) 2014-2019,  Regents of the University of California,
+Copyright (c) 2014-2024,  Regents of the University of California,
                           Arizona Board of Regents,
                           Colorado State University,
                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,38 +23,37 @@ You should have received a copy of the GNU General Public License along with
 NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
+import subprocess
 from waflib import Context, Logs, Utils
-import os, subprocess
 
-VERSION = '0.6.6'
+VERSION = '22.12'
 APPNAME = 'nfd'
-BUGREPORT = 'https://redmine.named-data.net/projects/nfd'
-URL = 'https://named-data.net/doc/NFD/'
 GIT_TAG_PREFIX = 'NFD-'
 
 def options(opt):
     opt.load(['compiler_cxx', 'gnu_dirs'])
-    opt.load(['default-compiler-flags', 'compiler-features',
-              'coverage', 'pch', 'sanitizers', 'boost',
+    opt.load(['default-compiler-flags', 'pch',
+              'coverage', 'sanitizers', 'boost',
               'dependency-checker', 'unix-socket', 'websocket',
               'doxygen', 'sphinx_build'],
              tooldir=['.waf-tools'])
 
-    nfdopt = opt.add_option_group('NFD Options')
+    optgrp = opt.add_option_group('NFD Options')
 
-    opt.addUnixOptions(nfdopt)
-    opt.addDependencyOptions(nfdopt, 'libresolv')
-    opt.addDependencyOptions(nfdopt, 'librt')
-    opt.addDependencyOptions(nfdopt, 'libpcap')
-    nfdopt.add_option('--without-libpcap', action='store_true', default=False,
+    opt.addUnixOptions(optgrp)
+    opt.addDependencyOptions(optgrp, 'libresolv')
+    opt.addDependencyOptions(optgrp, 'librt')
+    opt.addDependencyOptions(optgrp, 'libpcap')
+    optgrp.add_option('--without-libpcap', action='store_true', default=False,
                       help='Disable libpcap (Ethernet face support will be disabled)')
-    nfdopt.add_option('--without-systemd', action='store_true', default=False,
+    optgrp.add_option('--without-systemd', action='store_true', default=False,
                       help='Disable systemd integration')
-    opt.addWebsocketOptions(nfdopt)
+    opt.addWebsocketOptions(optgrp)
 
-    nfdopt.add_option('--with-tests', action='store_true', default=False,
+    optgrp.add_option('--with-tests', action='store_true', default=False,
                       help='Build unit tests')
-    nfdopt.add_option('--with-other-tests', action='store_true', default=False,
+    optgrp.add_option('--with-other-tests', action='store_true', default=False,
                       help='Build other tests')
 
 PRIVILEGE_CHECK_CODE = '''
@@ -84,17 +83,24 @@ int main()
 
 def configure(conf):
     conf.load(['compiler_cxx', 'gnu_dirs',
-               'default-compiler-flags', 'compiler-features',
-               'pch', 'boost', 'dependency-checker', 'websocket',
+               'default-compiler-flags', 'pch',
+               'boost', 'dependency-checker', 'websocket',
                'doxygen', 'sphinx_build'])
 
     conf.env.WITH_TESTS = conf.options.with_tests
     conf.env.WITH_OTHER_TESTS = conf.options.with_other_tests
 
-    conf.find_program('bash', var='BASH')
+    conf.find_program('bash')
+    conf.find_program('dot', mandatory=False)
 
-    conf.check_cfg(package='libndn-cxx', args=['--cflags', '--libs'], uselib_store='NDN_CXX',
-                   pkg_config_path=os.environ.get('PKG_CONFIG_PATH', '%s/pkgconfig' % conf.env.LIBDIR))
+    # Prefer pkgconf if it's installed, because it gives more correct results
+    # on Fedora/CentOS/RHEL/etc. See https://bugzilla.redhat.com/show_bug.cgi?id=1953348
+    # Store the result in env.PKGCONFIG, which is the variable used inside check_cfg()
+    conf.find_program(['pkgconf', 'pkg-config'], var='PKGCONFIG')
+
+    pkg_config_path = os.environ.get('PKG_CONFIG_PATH', f'{conf.env.LIBDIR}/pkgconfig')
+    conf.check_cfg(package='libndn-cxx', args=['libndn-cxx >= 0.8.1', '--cflags', '--libs'],
+                   uselib_store='NDN_CXX', pkg_config_path=pkg_config_path)
 
     if not conf.options.without_systemd:
         conf.check_cfg(package='libsystemd', args=['--cflags', '--libs'],
@@ -108,15 +114,14 @@ def configure(conf):
 
     conf.check_cxx(header_name='valgrind/valgrind.h', define_name='HAVE_VALGRIND', mandatory=False)
 
-    boost_libs = ['system', 'program_options', 'filesystem']
-    if conf.env.WITH_TESTS or conf.env.WITH_OTHER_TESTS:
-        boost_libs.append('unit_test_framework')
+    conf.check_boost(lib='filesystem program_options', mt=True)
+    if conf.env.BOOST_VERSION_NUMBER < 107100:
+        conf.fatal('The minimum supported version of Boost is 1.71.0.\n'
+                   'Please upgrade your distribution or manually install a newer version of Boost.\n'
+                   'For more information, see https://redmine.named-data.net/projects/nfd/wiki/Boost')
 
-    conf.check_boost(lib=boost_libs, mt=True)
-    if conf.env.BOOST_VERSION_NUMBER < 105800:
-        conf.fatal('Minimum required Boost version is 1.58.0\n'
-                   'Please upgrade your distribution or manually install a newer version of Boost'
-                   ' (https://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)')
+    if conf.env.WITH_TESTS or conf.env.WITH_OTHER_TESTS:
+        conf.check_boost(lib='unit_test_framework', mt=True, uselib_store='BOOST_TESTS')
 
     conf.load('unix-socket')
 
@@ -135,12 +140,12 @@ def configure(conf):
 
     conf.define_cond('WITH_TESTS', conf.env.WITH_TESTS)
     conf.define_cond('WITH_OTHER_TESTS', conf.env.WITH_OTHER_TESTS)
-    conf.define('DEFAULT_CONFIG_FILE', '%s/ndn/nfd.conf' % conf.env.SYSCONFDIR)
+    conf.define('DEFAULT_CONFIG_FILE', f'{conf.env.SYSCONFDIR}/ndn/nfd.conf')
     # The config header will contain all defines that were added using conf.define()
     # or conf.define_cond().  Everything that was added directly to conf.env.DEFINES
     # will not appear in the config header, but will instead be passed directly to the
     # compiler on the command line.
-    conf.write_config_header('core/config.hpp')
+    conf.write_config_header('core/config.hpp', define_prefix='NFD_')
 
 def build(bld):
     versionhpp(bld)
@@ -155,12 +160,10 @@ def build(bld):
 
     bld.objects(
         target='core-objects',
-        features='pch',
-        source=bld.path.find_node('core').ant_glob('*.cpp') + ['core/version.cpp'],
-        use='version.cpp version.hpp NDN_CXX BOOST LIBRT',
+        source=bld.path.find_dir('core').ant_glob('*.cpp') + ['core/version.cpp'],
+        use='version.cpp version.hpp BOOST NDN_CXX LIBRT',
         includes='.',
-        export_includes='.',
-        headers='core/common.hpp')
+        export_includes='.')
 
     nfd_objects = bld.objects(
         target='daemon-objects',
@@ -170,6 +173,8 @@ def build(bld):
                                        'daemon/face/unix*.cpp',
                                        'daemon/face/websocket*.cpp',
                                        'daemon/main.cpp']),
+        features='pch',
+        headers='daemon/nfd-pch.hpp',
         use='core-objects',
         includes='daemon',
         export_includes='daemon')
@@ -194,16 +199,17 @@ def build(bld):
                 source='daemon/main.cpp',
                 use='daemon-objects SYSTEMD')
 
-    bld.recurse('tools')
     bld.recurse('tests')
+    bld.recurse('tools')
 
+    # Install sample configs
     bld(features='subst',
         source='nfd.conf.sample.in',
         target='nfd.conf.sample',
         install_path='${SYSCONFDIR}/ndn',
         IF_HAVE_LIBPCAP='' if bld.env.HAVE_LIBPCAP else '; ',
-        IF_HAVE_WEBSOCKET='' if bld.env.HAVE_WEBSOCKET else '; ')
-
+        IF_HAVE_WEBSOCKET='' if bld.env.HAVE_WEBSOCKET else '; ',
+        UNIX_SOCKET_PATH='/run/nfd/nfd.sock' if Utils.unversioned_sys_platform() == 'linux' else '/var/run/nfd/nfd.sock')
     bld.install_files('${SYSCONFDIR}/ndn', 'autoconfig.conf.sample')
 
     if bld.env.HAVE_SYSTEMD:
@@ -233,17 +239,19 @@ def build(bld):
 def versionhpp(bld):
     version(bld)
 
+    vmajor = int(VERSION_SPLIT[0])
+    vminor = int(VERSION_SPLIT[1]) if len(VERSION_SPLIT) >= 2 else 0
+    vpatch = int(VERSION_SPLIT[2]) if len(VERSION_SPLIT) >= 3 else 0
+
     bld(features='subst',
         name='version.hpp',
         source='core/version.hpp.in',
         target='core/version.hpp',
         install_path=None,
-        VERSION=int(VERSION_SPLIT[0]) * 1000000 +
-                int(VERSION_SPLIT[1]) * 1000 +
-                int(VERSION_SPLIT[2]),
-        VERSION_MAJOR=VERSION_SPLIT[0],
-        VERSION_MINOR=VERSION_SPLIT[1],
-        VERSION_PATCH=VERSION_SPLIT[2])
+        VERSION=vmajor * 1000000 + vminor * 1000 + vpatch,
+        VERSION_MAJOR=str(vmajor),
+        VERSION_MINOR=str(vminor),
+        VERSION_PATCH=str(vpatch))
 
 def docs(bld):
     from waflib import Options
@@ -262,6 +270,7 @@ def doxygen(bld):
         target=['docs/doxygen.conf',
                 'docs/named_data_theme/named_data_footer-with-analytics.html'],
         VERSION=VERSION,
+        HAVE_DOT='YES' if bld.env.DOT else 'NO',
         HTML_FOOTER='../build/docs/named_data_theme/named_data_footer-with-analytics.html' \
                         if os.getenv('GOOGLE_ANALYTICS', None) \
                         else '../docs/named_data_theme/named_data_footer.html',
@@ -295,19 +304,19 @@ def version(ctx):
     # first, try to get a version string from git
     gotVersionFromGit = False
     try:
-        cmd = ['git', 'describe', '--always', '--match', '%s*' % GIT_TAG_PREFIX]
-        out = subprocess.check_output(cmd, universal_newlines=True).strip()
+        cmd = ['git', 'describe', '--always', '--match', f'{GIT_TAG_PREFIX}*']
+        out = subprocess.run(cmd, capture_output=True, check=True, text=True).stdout.strip()
         if out:
             gotVersionFromGit = True
             if out.startswith(GIT_TAG_PREFIX):
                 Context.g_module.VERSION = out.lstrip(GIT_TAG_PREFIX)
             else:
                 # no tags matched
-                Context.g_module.VERSION = '%s-commit-%s' % (VERSION_BASE, out)
-    except (OSError, subprocess.CalledProcessError):
+                Context.g_module.VERSION = f'{VERSION_BASE}-commit-{out}'
+    except (OSError, subprocess.SubprocessError):
         pass
 
-    versionFile = ctx.path.find_node('VERSION')
+    versionFile = ctx.path.find_node('VERSION.info')
     if not gotVersionFromGit and versionFile is not None:
         try:
             Context.g_module.VERSION = versionFile.read()
@@ -322,17 +331,19 @@ def version(ctx):
                 # already up-to-date
                 return
         except EnvironmentError as e:
-            Logs.warn('%s exists but is not readable (%s)' % (versionFile, e.strerror))
+            Logs.warn(f'{versionFile} exists but is not readable ({e.strerror})')
     else:
-        versionFile = ctx.path.make_node('VERSION')
+        versionFile = ctx.path.make_node('VERSION.info')
 
     try:
         versionFile.write(Context.g_module.VERSION)
     except EnvironmentError as e:
-        Logs.warn('%s is not writable (%s)' % (versionFile, e.strerror))
+        Logs.warn(f'{versionFile} is not writable ({e.strerror})')
 
 def dist(ctx):
+    ctx.algo = 'tar.xz'
     version(ctx)
 
 def distcheck(ctx):
+    ctx.algo = 'tar.xz'
     version(ctx)

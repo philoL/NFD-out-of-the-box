@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,14 +26,14 @@
 #include "fib-module.hpp"
 #include "format-helpers.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
+
+namespace nfd::tools::nfdc {
 
 void
-FibModule::fetchStatus(Controller& controller,
+FibModule::fetchStatus(ndn::nfd::Controller& controller,
                        const std::function<void()>& onSuccess,
-                       const Controller::DatasetFailCallback& onFailure,
+                       const ndn::nfd::DatasetFailureCallback& onFailure,
                        const CommandOptions& options)
 {
   controller.fetch<ndn::nfd::FibDataset>(
@@ -98,6 +98,4 @@ FibModule::formatItemText(std::ostream& os, const FibEntry& item) const
   os << "\n";
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

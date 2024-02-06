@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,25 +23,18 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "transport-test-common.hpp"
-
 #include "multicast-udp-transport-fixture.hpp"
 
-#include <boost/mpl/vector.hpp>
+#include <boost/mp11/list.hpp>
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
+
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
+BOOST_AUTO_TEST_SUITE(TestMulticastUdpTransport)
 
-using MulticastUdpTransportFixtureWithAddress =
-  IpTransportFixture<MulticastUdpTransportFixture, AddressFamily::Any,
-                     AddressScope::Global, MulticastInterface::Yes>;
-
-BOOST_FIXTURE_TEST_SUITE(TestMulticastUdpTransport, MulticastUdpTransportFixtureWithAddress)
-
-using MulticastUdpTransportFixtures = boost::mpl::vector<
+using MulticastUdpTransportFixtures = boost::mp11::mp_list<
   IpTransportFixture<MulticastUdpTransportFixture, AddressFamily::V4, AddressScope::Global, MulticastInterface::Yes>,
   IpTransportFixture<MulticastUdpTransportFixture, AddressFamily::V6, AddressScope::LinkLocal, MulticastInterface::Yes>,
   IpTransportFixture<MulticastUdpTransportFixture, AddressFamily::V6, AddressScope::Global, MulticastInterface::Yes>
@@ -63,7 +56,12 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(StaticProperties, T, MulticastUdpTransportFixtu
   BOOST_CHECK_GT(this->transport->getSendQueueCapacity(), 0);
 }
 
-BOOST_AUTO_TEST_CASE(PersistencyChange)
+using MulticastUdpTransportFixtureWithAddress = IpTransportFixture<MulticastUdpTransportFixture,
+                                                                   AddressFamily::Any,
+                                                                   AddressScope::LinkLocal,
+                                                                   MulticastInterface::Yes>;
+
+BOOST_FIXTURE_TEST_CASE(PersistencyChange, MulticastUdpTransportFixtureWithAddress)
 {
   TRANSPORT_TEST_INIT();
 
@@ -72,7 +70,7 @@ BOOST_AUTO_TEST_CASE(PersistencyChange)
   BOOST_CHECK_EQUAL(transport->canChangePersistencyTo(ndn::nfd::FACE_PERSISTENCY_PERMANENT), true);
 }
 
-BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveMultipleRemoteEndpoints, T, MulticastUdpTransportFixtures, T)
+BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveFromMultipleEndpoints, T, MulticastUdpTransportFixtures, T)
 {
   TRANSPORT_TEST_INIT();
 
@@ -93,8 +91,8 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveMultipleRemoteEndpoints, T, MulticastUdp
   BOOST_CHECK_EQUAL(this->transport->getState(), TransportState::UP);
 
   BOOST_REQUIRE_EQUAL(this->receivedPackets->size(), 2);
-  BOOST_CHECK_EQUAL(this->receivedPackets->at(0).endpoint,
-                    this->receivedPackets->at(1).endpoint);
+  BOOST_CHECK(this->receivedPackets->at(0).endpoint == this->receivedPackets->at(1).endpoint);
+  BOOST_CHECK(std::holds_alternative<nfd::udp::Endpoint>(this->receivedPackets->at(0).endpoint));
 
   this->sendToGroup(remoteSockTx2, buf1);
   this->sendToGroup(remoteSockTx2, buf2);
@@ -105,15 +103,14 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveMultipleRemoteEndpoints, T, MulticastUdp
   BOOST_CHECK_EQUAL(this->transport->getState(), TransportState::UP);
 
   BOOST_REQUIRE_EQUAL(this->receivedPackets->size(), 4);
-  BOOST_CHECK_EQUAL(this->receivedPackets->at(2).endpoint,
-                    this->receivedPackets->at(3).endpoint);
-  BOOST_CHECK_NE(this->receivedPackets->at(0).endpoint,
-                 this->receivedPackets->at(2).endpoint);
+  EndpointId epId2(remoteSockTx2.local_endpoint());
+  BOOST_CHECK(this->receivedPackets->at(0).endpoint != epId2);
+  BOOST_CHECK(this->receivedPackets->at(1).endpoint != epId2);
+  BOOST_CHECK(this->receivedPackets->at(2).endpoint == epId2);
+  BOOST_CHECK(this->receivedPackets->at(3).endpoint == epId2);
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestMulticastUdpTransport
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

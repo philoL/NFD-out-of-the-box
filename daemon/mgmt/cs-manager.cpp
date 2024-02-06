@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,9 +29,9 @@
 
 #include <ndn-cxx/mgmt/nfd/cs-info.hpp>
 
-namespace nfd {
+#include <limits>
 
-constexpr size_t CsManager::ERASE_LIMIT;
+namespace nfd {
 
 CsManager::CsManager(Cs& cs, const ForwarderCounters& fwCounters,
                      Dispatcher& dispatcher, CommandAuthenticator& authenticator)
@@ -40,11 +40,11 @@ CsManager::CsManager(Cs& cs, const ForwarderCounters& fwCounters,
   , m_fwCounters(fwCounters)
 {
   registerCommandHandler<ndn::nfd::CsConfigCommand>("config",
-    bind(&CsManager::changeConfig, this, _4, _5));
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { changeConfig(std::forward<decltype(args)>(args)...); });
   registerCommandHandler<ndn::nfd::CsEraseCommand>("erase",
-    bind(&CsManager::erase, this, _4, _5));
-
-  registerStatusDatasetHandler("info", bind(&CsManager::serveInfo, this, _1, _2, _3));
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { erase(std::forward<decltype(args)>(args)...); });
+  registerStatusDatasetHandler("info",
+    [this] (auto&&, auto&&, auto&&... args) { serveInfo(std::forward<decltype(args)>(args)...); });
 }
 
 void
@@ -101,8 +101,7 @@ CsManager::erase(const ControlParameters& parameters,
 }
 
 void
-CsManager::serveInfo(const Name& topPrefix, const Interest& interest,
-                     ndn::mgmt::StatusDatasetContext& context) const
+CsManager::serveInfo(ndn::mgmt::StatusDatasetContext& context) const
 {
   ndn::nfd::CsInfo info;
   info.setCapacity(m_cs.getLimit());

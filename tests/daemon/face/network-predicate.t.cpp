@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,9 +34,7 @@
 #include <boost/property_tree/info_parser.hpp>
 #include <sstream>
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_AUTO_TEST_SUITE(TestNetworkPredicate)
@@ -66,24 +64,24 @@ protected:
   T predicate;
 };
 
-class NetworkInterfacePredicateFixture : public NetworkPredicateBaseFixture<NetworkInterfacePredicate>
+class NetworkInterfacePredicateFixture : public NetworkPredicateBaseFixture<face::NetworkInterfacePredicate>
 {
 protected:
   NetworkInterfacePredicateFixture()
   {
-    using namespace boost::asio::ip;
     using namespace ndn::net;
     namespace ethernet = ndn::ethernet;
+    namespace ip = boost::asio::ip;
 
     netifs.push_back(NetworkMonitorStub::makeNetworkInterface());
     netifs.back()->setIndex(0);
     netifs.back()->setName("eth0");
     netifs.back()->setEthernetAddress(ethernet::Address::fromString("3e:15:c2:8b:65:00"));
     netifs.back()->addNetworkAddress(NetworkAddress(AddressFamily::V4,
-      address_v4::from_string("129.82.100.1"), address_v4::from_string("129.82.255.255"),
+      ip::make_address_v4("129.82.100.1"), ip::make_address_v4("129.82.255.255"),
       16, AddressScope::GLOBAL, 0));
     netifs.back()->addNetworkAddress(NetworkAddress(AddressFamily::V6,
-      address_v6::from_string("2001:db8:1::1"), address_v6::from_string("2001:db8:1::ffff:ffff:ffff:ffff"),
+      ip::make_address_v6("2001:db8:1::1"), ip::make_address_v6("2001:db8:1::ffff:ffff:ffff:ffff"),
       64, AddressScope::GLOBAL, 0));
     netifs.back()->setFlags(IFF_UP);
 
@@ -92,10 +90,10 @@ protected:
     netifs.back()->setName("eth1");
     netifs.back()->setEthernetAddress(ethernet::Address::fromString("3e:15:c2:8b:65:01"));
     netifs.back()->addNetworkAddress(NetworkAddress(AddressFamily::V4,
-      address_v4::from_string("192.168.2.1"), address_v4::from_string("192.168.2.255"),
+      ip::make_address_v4("192.168.2.1"), ip::make_address_v4("192.168.2.255"),
       24, AddressScope::GLOBAL, 0));
     netifs.back()->addNetworkAddress(NetworkAddress(AddressFamily::V6,
-      address_v6::from_string("2001:db8:2::1"), address_v6::from_string("2001:db8:2::ffff:ffff:ffff:ffff"),
+      ip::make_address_v6("2001:db8:2::1"), ip::make_address_v6("2001:db8:2::ffff:ffff:ffff:ffff"),
       64, AddressScope::GLOBAL, 0));
     netifs.back()->setFlags(IFF_UP);
 
@@ -104,10 +102,10 @@ protected:
     netifs.back()->setName("eth2");
     netifs.back()->setEthernetAddress(ethernet::Address::fromString("3e:15:c2:8b:65:02"));
     netifs.back()->addNetworkAddress(NetworkAddress(AddressFamily::V4,
-      address_v4::from_string("198.51.100.1"), address_v4::from_string("198.51.100.255"),
+      ip::make_address_v4("198.51.100.1"), ip::make_address_v4("198.51.100.255"),
       24, AddressScope::GLOBAL, 0));
     netifs.back()->addNetworkAddress(NetworkAddress(AddressFamily::V6,
-      address_v6::from_string("2001:db8::1"), address_v6::from_string("2001:db8::ffff"),
+      ip::make_address_v6("2001:db8::1"), ip::make_address_v6("2001:db8::ffff"),
       112, AddressScope::GLOBAL, 0));
     netifs.back()->setFlags(IFF_MULTICAST | IFF_BROADCAST | IFF_UP);
 
@@ -116,7 +114,7 @@ protected:
     netifs.back()->setName("enp68s0f1");
     netifs.back()->setEthernetAddress(ethernet::Address::fromString("3e:15:c2:8b:65:03"));
     netifs.back()->addNetworkAddress(NetworkAddress(AddressFamily::V4,
-      address_v4::from_string("192.168.2.3"), address_v4::from_string("192.168.2.255"),
+      ip::make_address_v4("192.168.2.3"), ip::make_address_v4("192.168.2.255"),
       24, AddressScope::GLOBAL, 0));
     netifs.back()->setFlags(IFF_UP);
   }
@@ -377,17 +375,17 @@ BOOST_AUTO_TEST_CASE(UnrecognizedKey)
 
 BOOST_AUTO_TEST_SUITE_END() // NetworkInterface
 
-class IpAddressPredicateFixture : public NetworkPredicateBaseFixture<IpAddressPredicate>
+class IpAddressPredicateFixture : public NetworkPredicateBaseFixture<face::IpAddressPredicate>
 {
 protected:
   IpAddressPredicateFixture()
   {
     using namespace boost::asio::ip;
 
-    addrs.push_back(address_v4::from_string("129.82.100.1"));
-    addrs.push_back(address_v6::from_string("2001:db8:1::1"));
-    addrs.push_back(address_v4::from_string("192.168.2.1"));
-    addrs.push_back(address_v6::from_string("2001:db8:2::1"));
+    addrs.emplace_back(make_address_v4("129.82.100.1"));
+    addrs.emplace_back(make_address_v6("2001:db8:1::1"));
+    addrs.emplace_back(make_address_v4("192.168.2.1"));
+    addrs.emplace_back(make_address_v6("2001:db8:2::1"));
   }
 
 protected:
@@ -512,6 +510,4 @@ BOOST_AUTO_TEST_SUITE_END() // IpAddress
 BOOST_AUTO_TEST_SUITE_END() // TestNetworkPredicate
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

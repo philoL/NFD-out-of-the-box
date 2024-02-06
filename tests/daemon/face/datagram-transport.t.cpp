@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,18 +26,16 @@
 #include "unicast-udp-transport-fixture.hpp"
 #include "multicast-udp-transport-fixture.hpp"
 
-#include "transport-test-common.hpp"
+#include <boost/mp11/list.hpp>
 
-#include <boost/mpl/vector.hpp>
+namespace nfd::tests {
 
-namespace nfd {
-namespace face {
-namespace tests {
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_AUTO_TEST_SUITE(TestDatagramTransport)
 
-using DatagramTransportFixtures = boost::mpl::vector<
+using DatagramTransportFixtures = boost::mp11::mp_list<
   GENERATE_IP_TRANSPORT_FIXTURE_INSTANTIATIONS(UnicastUdpTransportFixture),
   IpTransportFixture<MulticastUdpTransportFixture, AddressFamily::V4, AddressScope::Global, MulticastInterface::Yes>,
   IpTransportFixture<MulticastUdpTransportFixture, AddressFamily::V6, AddressScope::LinkLocal, MulticastInterface::Yes>,
@@ -56,7 +54,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(Send, T, DatagramTransportFixtures, T)
   std::vector<uint8_t> readBuf(block1.size());
   this->remoteRead(readBuf);
 
-  BOOST_CHECK_EQUAL_COLLECTIONS(readBuf.begin(), readBuf.end(), block1.begin(), block1.end());
+  BOOST_TEST(readBuf == block1, boost::test_tools::per_element());
   BOOST_CHECK_EQUAL(this->transport->getState(), TransportState::UP);
 }
 
@@ -82,8 +80,12 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveNormal, T, DatagramTransportFixtures, T)
   BOOST_REQUIRE_EQUAL(this->receivedPackets->size(), 2);
   BOOST_CHECK(this->receivedPackets->at(0).packet == pkt1);
   BOOST_CHECK(this->receivedPackets->at(1).packet == pkt2);
-  BOOST_CHECK_EQUAL(this->receivedPackets->at(0).endpoint,
-                    this->receivedPackets->at(1).endpoint);
+  BOOST_CHECK(this->receivedPackets->at(0).endpoint == this->receivedPackets->at(1).endpoint);
+  // check that the endpoint is empty (monostate) if and only if the transport is unicast
+  constexpr bool isUnicast = std::is_same_v<typename std::remove_pointer_t<decltype(T::transport)>::addressing,
+                                            face::Unicast>;
+  BOOST_CHECK_EQUAL(std::holds_alternative<std::monostate>(this->receivedPackets->at(0).endpoint),
+                    isUnicast);
 }
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveIncomplete, T, DatagramTransportFixtures, T)
@@ -120,12 +122,12 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(ReceiveTooLarge, T, DatagramTransportFixtures, 
 {
   TRANSPORT_TEST_INIT();
 
-  std::vector<uint8_t> bytes(ndn::MAX_NDN_PACKET_SIZE, 0);
-  auto pkt1 = ndn::encoding::makeBinaryBlock(300, bytes.data(), bytes.size() - 6);
+  const std::vector<uint8_t> bytes(ndn::MAX_NDN_PACKET_SIZE, 0);
+  auto pkt1 = ndn::encoding::makeBinaryBlock(300, ndn::make_span(bytes).subspan(6));
   ndn::Buffer buf1(pkt1.begin(), pkt1.end());
   BOOST_REQUIRE_EQUAL(buf1.size(), ndn::MAX_NDN_PACKET_SIZE);
 
-  auto pkt2 = ndn::encoding::makeBinaryBlock(301, bytes.data(), bytes.size());
+  auto pkt2 = ndn::encoding::makeBinaryBlock(301, bytes);
   ndn::Buffer buf2(pkt2.begin(), pkt2.end());
   BOOST_REQUIRE_GT(buf2.size(), ndn::MAX_NDN_PACKET_SIZE);
 
@@ -174,6 +176,4 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(SendQueueLength, T, DatagramTransportFixtures, 
 BOOST_AUTO_TEST_SUITE_END() // TestDatagramTransport
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

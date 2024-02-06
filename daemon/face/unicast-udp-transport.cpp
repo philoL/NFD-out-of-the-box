@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,15 +34,15 @@
 #include <sys/socket.h> // for setsockopt()
 #endif
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-NFD_LOG_MEMBER_INIT_SPECIALIZED((DatagramTransport<boost::asio::ip::udp, Unicast>), UnicastUdpTransport);
+namespace ip = boost::asio::ip;
 
-UnicastUdpTransport::UnicastUdpTransport(protocol::socket&& socket,
+NFD_LOG_MEMBER_INIT_SPECIALIZED((DatagramTransport<ip::udp, Unicast>), UnicastUdpTransport);
+
+UnicastUdpTransport::UnicastUdpTransport(ip::udp::socket&& socket,
                                          ndn::nfd::FacePersistency persistency,
-                                         time::nanoseconds idleTimeout,
-                                         optional<ssize_t> overrideMtu)
+                                         time::nanoseconds idleTimeout)
   : DatagramTransport(std::move(socket))
   , m_idleTimeout(idleTimeout)
 {
@@ -51,14 +51,7 @@ UnicastUdpTransport::UnicastUdpTransport(protocol::socket&& socket,
   this->setScope(ndn::nfd::FACE_SCOPE_NON_LOCAL);
   this->setPersistency(persistency);
   this->setLinkType(ndn::nfd::LINK_TYPE_POINT_TO_POINT);
-
-  if (overrideMtu) {
-    this->setMtu(std::min(udp::computeMtu(m_socket.local_endpoint()), *overrideMtu));
-  }
-  else {
-    this->setMtu(udp::computeMtu(m_socket.local_endpoint()));
-  }
-  BOOST_ASSERT(this->getMtu() >= MIN_MTU);
+  this->setMtu(udp::computeMtu(m_socket.local_endpoint()));
 
   NFD_LOG_FACE_DEBUG("Creating transport");
 
@@ -103,7 +96,7 @@ UnicastUdpTransport::afterChangePersistency(ndn::nfd::FacePersistency oldPersist
   }
   else {
     m_closeIfIdleEvent.cancel();
-    setExpirationTime(time::steady_clock::TimePoint::max());
+    setExpirationTime(time::steady_clock::time_point::max());
   }
 }
 
@@ -123,5 +116,4 @@ UnicastUdpTransport::scheduleClosureWhenIdle()
   setExpirationTime(time::steady_clock::now() + m_idleTimeout);
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

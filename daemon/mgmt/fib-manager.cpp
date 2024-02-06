@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -45,16 +45,15 @@ FibManager::FibManager(Fib& fib, const FaceTable& faceTable,
   , m_faceTable(faceTable)
 {
   registerCommandHandler<ndn::nfd::FibAddNextHopCommand>("add-nexthop",
-    bind(&FibManager::addNextHop, this, _2, _3, _4, _5));
+    [this] (auto&&, auto&&, auto&&... args) { addNextHop(std::forward<decltype(args)>(args)...); });
   registerCommandHandler<ndn::nfd::FibRemoveNextHopCommand>("remove-nexthop",
-    bind(&FibManager::removeNextHop, this, _2, _3, _4, _5));
-
-  registerStatusDatasetHandler("list", bind(&FibManager::listEntries, this, _1, _2, _3));
+    [this] (auto&&, auto&&, auto&&... args) { removeNextHop(std::forward<decltype(args)>(args)...); });
+  registerStatusDatasetHandler("list",
+    [this] (auto&&, auto&&, auto&&... args) { listEntries(std::forward<decltype(args)>(args)...); });
 }
 
 void
-FibManager::addNextHop(const Name& topPrefix, const Interest& interest,
-                       ControlParameters parameters,
+FibManager::addNextHop(const Interest& interest, ControlParameters parameters,
                        const ndn::mgmt::CommandContinuation& done)
 {
   setFaceForSelfRegistration(interest, parameters);
@@ -66,7 +65,7 @@ FibManager::addNextHop(const Name& topPrefix, const Interest& interest,
     NFD_LOG_DEBUG("fib/add-nexthop(" << prefix << ',' << faceId << ',' << cost <<
                   "): FAIL prefix-too-long");
     return done(ControlResponse(414, "FIB entry prefix cannot exceed " +
-                                to_string(Fib::getMaxDepth()) + " components"));
+                                std::to_string(Fib::getMaxDepth()) + " components"));
   }
 
   Face* face = m_faceTable.get(faceId);
@@ -84,8 +83,7 @@ FibManager::addNextHop(const Name& topPrefix, const Interest& interest,
 }
 
 void
-FibManager::removeNextHop(const Name& topPrefix, const Interest& interest,
-                          ControlParameters parameters,
+FibManager::removeNextHop(const Interest& interest, ControlParameters parameters,
                           const ndn::mgmt::CommandContinuation& done)
 {
   setFaceForSelfRegistration(interest, parameters);
@@ -121,8 +119,7 @@ FibManager::removeNextHop(const Name& topPrefix, const Interest& interest,
 }
 
 void
-FibManager::listEntries(const Name& topPrefix, const Interest& interest,
-                        ndn::mgmt::StatusDatasetContext& context)
+FibManager::listEntries(ndn::mgmt::StatusDatasetContext& context)
 {
   for (const auto& entry : m_fib) {
     const auto& nexthops = entry.getNextHops() |
@@ -142,9 +139,9 @@ FibManager::listEntries(const Name& topPrefix, const Interest& interest,
 void
 FibManager::setFaceForSelfRegistration(const Interest& request, ControlParameters& parameters)
 {
-  bool isSelfRegistration = (parameters.getFaceId() == 0);
+  bool isSelfRegistration = parameters.getFaceId() == face::INVALID_FACEID;
   if (isSelfRegistration) {
-    shared_ptr<lp::IncomingFaceIdTag> incomingFaceIdTag = request.getTag<lp::IncomingFaceIdTag>();
+    auto incomingFaceIdTag = request.getTag<lp::IncomingFaceIdTag>();
     // NDNLPv2 says "application MUST be prepared to receive a packet without IncomingFaceId field",
     // but it's fine to assert IncomingFaceId is available, because InternalFace lives inside NFD
     // and is initialized synchronously with IncomingFaceId field enabled.

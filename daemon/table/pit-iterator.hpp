@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,57 +29,42 @@
 #include "name-tree.hpp"
 #include "pit-entry.hpp"
 
-namespace nfd {
-namespace pit {
+namespace nfd::pit {
 
-/** \brief PIT iterator
+/**
+ * \brief PIT iterator.
  */
-class Iterator
+class Iterator : public boost::forward_iterator_helper<Iterator, const Entry>
 {
 public:
-  using iterator_category = std::forward_iterator_tag;
-  using value_type        = const Entry;
-  using difference_type   = std::ptrdiff_t;
-  using pointer           = value_type*;
-  using reference         = value_type&;
-
-  /** \brief constructor
-   *  \param ntIt a name tree iterator that visits name tree entries with one or more PIT entries
-   *  \param iPitEntry make this iterator to dereference to the i-th PIT entry in name tree entry
+  /**
+   * \brief Constructor.
+   * \param ntIt a name tree iterator that visits name tree entries with one or more PIT entries
+   * \param iPitEntry make this iterator to dereference to the i-th PIT entry in name tree entry
    */
   explicit
-  Iterator(const NameTree::const_iterator& ntIt = NameTree::const_iterator(), size_t iPitEntry = 0);
-
-  const Entry&
-  operator*() const
+  Iterator(const NameTree::const_iterator& ntIt = {}, size_t iPitEntry = 0)
+    : m_ntIt(ntIt)
+    , m_iPitEntry(iPitEntry)
   {
-    return *this->operator->();
   }
 
-  const shared_ptr<Entry>&
-  operator->() const
+  const Entry&
+  operator*() const noexcept
   {
     BOOST_ASSERT(m_ntIt != NameTree::const_iterator());
     BOOST_ASSERT(m_iPitEntry < m_ntIt->getPitEntries().size());
-    return m_ntIt->getPitEntries()[m_iPitEntry];
+    return *m_ntIt->getPitEntries()[m_iPitEntry];
   }
 
   Iterator&
   operator++();
 
-  Iterator
-  operator++(int);
-
-  bool
-  operator==(const Iterator& other) const
+  friend bool
+  operator==(const Iterator& lhs, const Iterator& rhs) noexcept
   {
-    return m_ntIt == other.m_ntIt && m_iPitEntry == other.m_iPitEntry;
-  }
-
-  bool
-  operator!=(const Iterator& other) const
-  {
-    return !this->operator==(other);
+    return lhs.m_ntIt == rhs.m_ntIt &&
+           lhs.m_iPitEntry == rhs.m_iPitEntry;
   }
 
 private:
@@ -87,7 +72,6 @@ private:
   size_t m_iPitEntry; ///< current PIT entry within m_ntIt->getPitEntries()
 };
 
-} // namespace pit
-} // namespace nfd
+} // namespace nfd::pit
 
 #endif // NFD_DAEMON_TABLE_PIT_ITERATOR_HPP

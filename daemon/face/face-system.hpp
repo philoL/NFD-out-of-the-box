@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,12 +26,14 @@
 #ifndef NFD_DAEMON_FACE_FACE_SYSTEM_HPP
 #define NFD_DAEMON_FACE_FACE_SYSTEM_HPP
 
-#include "network-predicate.hpp"
 #include "common/config-file.hpp"
 
 #include <ndn-cxx/net/network-address.hpp>
 #include <ndn-cxx/net/network-interface.hpp>
 #include <ndn-cxx/net/network-monitor.hpp>
+
+#include <map>
+#include <set>
 
 namespace nfd {
 
@@ -43,10 +45,11 @@ class NetdevBound;
 class ProtocolFactory;
 struct ProtocolFactoryCtorParams;
 
-/** \brief entry point of the face system
+/**
+ * \brief Entry point of NFD's face system.
  *
- *  NFD's face system is organized as a FaceSystem-ProtocolFactory-Channel-Face hierarchy.
- *  FaceSystem class is the entry point of NFD's face system and owns ProtocolFactory objects.
+ * NFD's face system is organized as a FaceSystem-ProtocolFactory-Channel-Face hierarchy.
+ * The FaceSystem class is the entry point of the face system and owns all ProtocolFactory objects.
  */
 class FaceSystem : noncopyable
 {
@@ -55,20 +58,23 @@ public:
 
   ~FaceSystem();
 
-  /** \return ProtocolFactory objects owned by the FaceSystem
+  /**
+   * \brief Returns all ProtocolFactory objects owned by the face system.
    */
-  std::set<const ProtocolFactory*>
+  [[nodiscard]] std::set<const ProtocolFactory*>
   listProtocolFactories() const;
 
-  /** \return ProtocolFactory for the specified registered factory id or nullptr if not found
+  /**
+   * \return ProtocolFactory for the specified registered factory id or nullptr if not found.
    */
   ProtocolFactory*
-  getFactoryById(const std::string& id);
+  getFactoryById(const std::string& id) const;
 
-  /** \return ProtocolFactory for the specified FaceUri scheme or nullptr if not found
+  /**
+   * \return ProtocolFactory for the specified FaceUri scheme or nullptr if not found.
    */
   ProtocolFactory*
-  getFactoryByScheme(const std::string& scheme);
+  getFactoryByScheme(const std::string& scheme) const;
 
   bool
   hasFactoryForScheme(const std::string& scheme) const;
@@ -79,19 +85,19 @@ public:
     return m_faceTable;
   }
 
-  /** \brief register handler for face_system section of NFD configuration file
+  /** \brief Register handler for the `face_system` section of NFD's configuration file.
    */
   void
   setConfigFile(ConfigFile& configFile);
 
-  /** \brief configuration options from "general" section
+  /** \brief Configuration options from `general` section.
    */
   struct GeneralConfig
   {
     bool wantCongestionMarking = true;
   };
 
-  /** \brief context for processing a config section in ProtocolFactory
+  /** \brief Context for processing a config section in ProtocolFactory.
    */
   class ConfigContext : noncopyable
   {
@@ -100,7 +106,7 @@ public:
     bool isDryRun;
   };
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   ProtocolFactoryCtorParams
   makePFCtorParams();
 
@@ -109,14 +115,14 @@ private:
   processConfig(const ConfigSection& configSection, bool isDryRun,
                 const std::string& filename);
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
-  /** \brief config section name => protocol factory
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+  /** \brief Config section name => protocol factory.
    */
   std::map<std::string, unique_ptr<ProtocolFactory>> m_factories;
   unique_ptr<NetdevBound> m_netdevBound;
 
 private:
-  /** \brief scheme => protocol factory
+  /** \brief Scheme => protocol factory.
    *
    *  The same protocol factory may be available under multiple schemes.
    */

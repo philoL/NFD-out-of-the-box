@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,12 +27,7 @@
 
 #include "status-fixture.hpp"
 
-#include <ndn-cxx/security/signing-helpers.hpp>
-
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+namespace nfd::tools::nfdc::tests {
 
 BOOST_AUTO_TEST_SUITE(Nfdc)
 BOOST_FIXTURE_TEST_SUITE(TestForwarderGeneralModule, StatusFixture<ForwarderGeneralModule>)
@@ -125,7 +120,4 @@ BOOST_AUTO_TEST_CASE(StatusNoNfdId)
 BOOST_AUTO_TEST_SUITE_END() // TestForwarderGeneralModule
 BOOST_AUTO_TEST_SUITE_END() // Nfdc
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests

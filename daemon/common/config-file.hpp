@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,29 +30,37 @@
 
 #include <boost/property_tree/ptree.hpp>
 
+#include <functional>
+#include <map>
+
 namespace nfd {
 
-/** \brief a config file section
+/**
+ * \brief A configuration file section.
  */
 using ConfigSection = boost::property_tree::ptree;
 
-/** \brief an optional config file section
+/**
+ * \brief An optional configuration file section.
  */
 using OptionalConfigSection = boost::optional<const ConfigSection&>;
 
-/** \brief callback to process a config file section
+/**
+ * \brief Callback to process a configuration file section.
  */
 using ConfigSectionHandler = std::function<void(const ConfigSection& section, bool isDryRun,
                                                 const std::string& filename)>;
 
-/** \brief callback to process a config file section without a \p ConfigSectionHandler
+/**
+ * \brief Callback to process a configuration file section without a #ConfigSectionHandler.
  */
 using UnknownConfigSectionHandler = std::function<void(const std::string& filename,
                                                        const std::string& sectionName,
                                                        const ConfigSection& section,
                                                        bool isDryRun)>;
 
-/** \brief configuration file parsing utility
+/**
+ * \brief Configuration file parsing utility.
  */
 class ConfigFile : noncopyable
 {
@@ -80,7 +88,7 @@ public: // unknown section handlers
                        bool isDryRun);
 
 public: // parse helpers
-  /** \brief parse a config option that can be either "yes" or "no"
+  /** \brief Parse a config option that can be either "yes" or "no".
    *  \retval true "yes"
    *  \retval false "no"
    *  \throw Error the value is neither "yes" nor "no"
@@ -95,7 +103,7 @@ public: // parse helpers
   }
 
   /**
-   * \brief parse a numeric (integral or floating point) config option
+   * \brief Parse a numeric (integral or floating point) config option.
    * \tparam T an arithmetic type
    *
    * \return the numeric value of the parsed option
@@ -105,25 +113,44 @@ public: // parse helpers
   static T
   parseNumber(const ConfigSection& node, const std::string& key, const std::string& sectionName)
   {
-    static_assert(std::is_arithmetic<T>::value, "T must be an arithmetic type");
+    static_assert(std::is_arithmetic_v<T>);
 
-    boost::optional<T> value = node.get_value_optional<T>();
-    if (value) {
+    auto value = node.get_value_optional<T>();
+    // Unsigned logic is workaround for https://redmine.named-data.net/issues/4489
+    if (value &&
+        (std::is_signed_v<T> || node.get_value<std::string>().find("-") == std::string::npos)) {
       return *value;
     }
     NDN_THROW(Error("Invalid value '" + node.get_value<std::string>() +
                     "' for option '" + key + "' in section '" + sectionName + "'"));
   }
 
-  template <typename T>
+  template<typename T>
   static T
   parseNumber(const ConfigSection::value_type& option, const std::string& sectionName)
   {
     return parseNumber<T>(option.second, option.first, sectionName);
   }
 
+  /**
+   * \brief Check that a value is within the inclusive range [min, max].
+   * \throw Error the value is out of the acceptable range
+   */
+  template<typename T>
+  static void
+  checkRange(T value, T min, T max, const std::string& key, const std::string& sectionName)
+  {
+    static_assert(std::is_integral_v<T>);
+
+    if (value < min || value > max) {
+      NDN_THROW(Error("Invalid value '" + std::to_string(value) + "' for option '" + key +
+                      "' in section '" + sectionName + "': out of acceptable range [" +
+                      std::to_string(min) + ", " + std::to_string(max) + "]"));
+    }
+  }
+
 public: // setup and parsing
-  /// \brief setup notification of configuration file sections
+  /// \brief Setup notification of configuration file sections.
   void
   addSectionHandler(const std::string& sectionName,
                     ConfigSectionHandler subscriber);

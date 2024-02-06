@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,12 +31,13 @@
 
 #include <ndn-cxx/util/rtt-estimator.hpp>
 
-namespace nfd {
-namespace fw {
-namespace asf {
+#include <unordered_map>
 
-/** \brief Strategy information for each face in a namespace
-*/
+namespace nfd::fw::asf {
+
+/**
+ * \brief Strategy information for each face in a namespace.
+ */
 class FaceInfo
 {
 public:
@@ -53,7 +54,7 @@ public:
   }
 
   time::nanoseconds
-  scheduleTimeout(const Name& interestName, scheduler::EventCallback cb);
+  scheduleTimeout(const Name& interestName, ndn::scheduler::EventCallback cb);
 
   void
   cancelTimeout(const Name& prefix);
@@ -72,12 +73,6 @@ public:
     cancelTimeout(interestName);
   }
 
-  bool
-  hasTimeout() const
-  {
-    return getLastRtt() == RTT_TIMEOUT;
-  }
-
   time::nanoseconds
   getLastRtt() const
   {
@@ -91,41 +86,42 @@ public:
   }
 
   size_t
-  getNSilentTimeouts() const
+  getNTimeouts() const
   {
-    return m_nSilentTimeouts;
+    return m_nTimeouts;
   }
 
   void
-  setNSilentTimeouts(size_t nSilentTimeouts)
+  setNTimeouts(size_t nTimeouts)
   {
-    m_nSilentTimeouts = nSilentTimeouts;
+    m_nTimeouts = nTimeouts;
   }
 
 public:
-  static const time::nanoseconds RTT_NO_MEASUREMENT;
-  static const time::nanoseconds RTT_TIMEOUT;
+  static constexpr time::nanoseconds RTT_NO_MEASUREMENT = -1_ns;
+  static constexpr time::nanoseconds RTT_TIMEOUT = -2_ns;
 
 private:
   ndn::util::RttEstimator m_rttEstimator;
   time::nanoseconds m_lastRtt = RTT_NO_MEASUREMENT;
   Name m_lastInterestName;
-  size_t m_nSilentTimeouts = 0;
+  size_t m_nTimeouts = 0;
 
   // Timeout associated with measurement
-  scheduler::ScopedEventId m_measurementExpiration;
+  ndn::scheduler::ScopedEventId m_measurementExpiration;
   friend class NamespaceInfo;
 
   // RTO associated with Interest
-  scheduler::ScopedEventId m_timeoutEvent;
+  ndn::scheduler::ScopedEventId m_timeoutEvent;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-/** \brief Stores strategy information about each face in this namespace
+/**
+ * \brief Stores strategy information about each face in this namespace.
  */
-class NamespaceInfo : public StrategyInfo
+class NamespaceInfo final : public StrategyInfo
 {
 public:
   static constexpr int
@@ -183,7 +179,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-/** \brief Helper class to retrieve and create strategy measurements
+/**
+ * \brief Helper class to retrieve and create strategy measurements.
  */
 class AsfMeasurements : noncopyable
 {
@@ -192,16 +189,16 @@ public:
   AsfMeasurements(MeasurementsAccessor& measurements);
 
   FaceInfo*
-  getFaceInfo(const fib::Entry& fibEntry, const Interest& interest, FaceId faceId);
+  getFaceInfo(const fib::Entry& fibEntry, const Name& interestName, FaceId faceId);
 
   FaceInfo&
-  getOrCreateFaceInfo(const fib::Entry& fibEntry, const Interest& interest, FaceId faceId);
+  getOrCreateFaceInfo(const fib::Entry& fibEntry, const Name& interestName, FaceId faceId);
 
   NamespaceInfo*
   getNamespaceInfo(const Name& prefix);
 
   NamespaceInfo&
-  getOrCreateNamespaceInfo(const fib::Entry& fibEntry, const Interest& interest);
+  getOrCreateNamespaceInfo(const fib::Entry& fibEntry, const Name& prefix);
 
 private:
   void
@@ -215,8 +212,6 @@ private:
   shared_ptr<const ndn::util::RttEstimator::Options> m_rttEstimatorOpts;
 };
 
-} // namespace asf
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw::asf
 
 #endif // NFD_DAEMON_FW_ASF_MEASUREMENTS_HPP

@@ -1,4 +1,4 @@
-; The general section contains settings of nfd process.
+; The general section contains global settings for the nfd process.
 general
 {
   ; Specify a user and/or group for NFD to drop privileges to
@@ -42,14 +42,23 @@ log
   ; Forwarder INFO
 }
 
+; The forwarder section contains settings that affect the core forwarding behavior of nfd.
+forwarder
+{
+  ; Specify the HopLimit that is added to incoming Interests without a HopLimit element.
+  ; A value of 0 disables adding the HopLimit.
+  ; Must be between 0 and 255. The default is 0.
+  default_hop_limit 0
+}
+
 ; The tables section configures the CS, PIT, FIB, Strategy Choice, and Measurements
 tables
 {
-  ; ContentStore size limit in number of packets
-  ; default is 65536, about 500MB with 8KB packet size
+  ; Content Store capacity limit in number of packets.
+  ; The default is 65536, equivalent to about 500MB with 8KB packet size.
   cs_max_packets 65536
 
-  ; Set the CS replacement policy.
+  ; Content Store replacement policy.
   ; Available policies are: priority_fifo, lru
   cs_policy lru
 
@@ -90,14 +99,12 @@ face_system
   ; The unix section contains settings for Unix stream faces and channels.
   ; A Unix channel is always listening; delete the unix section to disable
   ; Unix stream faces and channels.
-  ;
-  ; The ndn-cxx library expects unix:///var/run/nfd.sock to be used as
-  ; the default transport option. Please change the "transport" field
-  ; in client.conf to an appropriate tcp4 FaceUri if you want to
-  ; disable Unix sockets and use TCP instead.
   unix
   {
-    path /var/run/nfd.sock ; Unix stream listener path
+    ; The default transport is 'unix:///run/nfd/nfd.sock' (on Linux) or 'unix:///var/run/nfd/nfd.sock' (on
+    ; other platforms). This should match the 'transport' field in client.conf for ndn-cxx. If you wish
+    ; to use TCP instead of Unix sockets with ndn-cxx, change 'transport' to an appropriate TCP FaceUri.
+    path @UNIX_SOCKET_PATH@ ; Unix stream listener path
   }
 
   ; The tcp section contains settings for TCP faces and channels.
@@ -135,6 +142,14 @@ face_system
     ; The actual timeout will occur anytime between idle_timeout and 2*idle_timeout.
     ; The default is 600 (10 minutes).
     idle_timeout 600
+
+    ; Maximum payload size for outgoing packets on unicast faces, used in NDNLPv2 fragmentation.
+    ; This must be between 64 and 8800. The default is 8800.
+    ; This value excludes IPv4/IPv6/UDP headers. On an Ethernet link of MTU=1500, setting this
+    ; to 1452 would leave enough room for IP+UDP headers and prevent IP fragmentation.
+    ; This option is not changable during runtime configuration reload, but the MTU of an
+    ; individual face can be updated via NFD Management Protocol or the 'nfdc' tool.
+    unicast_mtu 8800
 
     ; UDP multicast settings.
     ; By default, NFD creates one UDP multicast face per NIC.
@@ -177,7 +192,7 @@ face_system
   ;
   ; **Ubuntu:**
   ;
-  ;    sudo apt-get install libcap2-bin
+  ;    sudo apt install libcap2-bin
   ;
   ; **Mac OS X:**
   ;
@@ -274,25 +289,25 @@ authorizations
     ;
     ; 1. Generate and install a self-signed identity certificate:
     ;
-    ;      ndnsec-keygen /`whoami` | ndnsec-install-cert -
+    ;      ndnsec key-gen /$(whoami) | ndnsec cert-install -
     ;
-    ; Note that the argument to ndnsec-key will be the identity name of the
-    ; new key (in this case, /your-username). Identities are hierarchical NDN
-    ; names and may have multiple components (e.g. `/ndn/ucla/edu/alice`).
-    ; You may create additional keys and identities as you see fit.
+    ; Note that the argument to 'ndnsec key-gen' will be the identity name of
+    ; the new key (in this case, /your-username). Identities are hierarchical
+    ; NDN names and may have multiple components (e.g., /ndn/ucla/edu/alice).
+    ; You may create additional keys and identities as needed.
     ;
-    ; 2. Dump the NDN certificate to a file:
+    ; 2. Export the certificate to a file:
     ;
-    ;      sudo mkdir -p @SYSCONFDIR@/ndn/keys/
-    ;      ndnsec-cert-dump -i /`whoami` >  default.ndncert
+    ;      ndnsec cert-dump -i /$(whoami) > default.ndncert
+    ;      sudo mkdir -p @SYSCONFDIR@/ndn/keys
     ;      sudo mv default.ndncert @SYSCONFDIR@/ndn/keys/default.ndncert
     ;
-    ; The "certfile" field below specifies the default key directory for
+    ; The 'certfile' field below specifies the default key directory for
     ; your machine. You may move your newly created key to the location it
     ; specifies or path.
 
     ; certfile keys/default.ndncert ; NDN identity certificate file
-    certfile any ; "any" authorizes command interests signed under any certificate,
+    certfile any ; 'any' authorizes command interests signed under any certificate,
                  ; i.e., no actual validation.
     privileges ; set of privileges granted to this identity
     {
@@ -336,7 +351,7 @@ rib
   ;   ; trust-anchors, which are briefly defined in this file.  For more information refer to
   ;   ; validator configuration file format documentation:
   ;   ;
-  ;   ;    https://named-data.net/doc/ndn-cxx/current/tutorials/security-validator-config.html
+  ;   ;    https://docs.named-data.net/ndn-cxx/current/tutorials/security-validator-config.html
   ;   ;
   ;   ; A trust-anchor is a pre-trusted certificate.  This can be any certificate that is the
   ;   ; root of certification chain (e.g., NDN testbed root certificate) or an existing
@@ -356,52 +371,62 @@ rib
   ;
   ;   rule
   ;   {
-  ;     id "RIB Registration Command Rule"
-  ;     for interest                         ; rule for Interests (to validate CommandInterests)
+  ;     id "RIB Command Interest"
+  ;     for interest
+  ;     ; match Commmand Interest name (either in v0.3 or v0.2 format)
   ;     filter
   ;     {
-  ;       type name                          ; condition on interest name (w/o SignatureInfo/SignatureValue)
-  ;       regex ^[<localhop><localhost>]<nfd><rib>[<register><unregister>]<><><>$
+  ;       type name
+  ;       regex ^<localhop><nfd><rib>[<register><unregister>]<>{1,3}$
   ;     }
   ;     checker
   ;     {
   ;       type customized
-  ;       sig-type rsa-sha256                ; interest must have a rsa-sha256 signature
+  ;       sig-type ecdsa-sha256
+  ;       ; KeyLocator must be either a key name or a certificate name
   ;       key-locator
   ;       {
-  ;         type name                        ; key locator must be the certificate name of the
-  ;                                          ; signing key
-  ;         regex ^<>*<KEY><>$
+  ;         type name
+  ;         regex ^<>*<KEY><>{1,3}$
   ;       }
   ;     }
   ;   }
   ;   rule
   ;   {
-  ;     id "NDN Testbed Hierarchy Rule"
-  ;     for data                             ; rule for Data (to validate NDN certificates)
+  ;     id "NDN Testbed Certificate Hierarchy"
+  ;     for data
+  ;     ; match certificate name only
   ;     filter
   ;     {
-  ;       type name                          ; condition on data name
-  ;       regex ^<>*<KEY><><><>$
+  ;       type name
+  ;       regex ^<>*<KEY><>{3}$
   ;     }
   ;     checker
   ;     {
-  ;       type hierarchical                  ; the certificate name of the signing key and
-  ;                                          ; the data name must follow the hierarchical model
-  ;       sig-type rsa-sha256                ; data must have a rsa-sha256 signature
+  ;       type customized
+  ;       sig-type ecdsa-sha256
+  ;       key-locator
+  ;       {
+  ;         type name
+  ;         ; issuer subject name must be a prefix of issued certificate name
+  ;         hyper-relation
+  ;         {
+  ;           k-regex ^(<>*)<KEY><>{1,3}$
+  ;           k-expand \\1
+  ;           h-relation is-prefix-of
+  ;           p-regex ^(<>*)$
+  ;           p-expand \\1
+  ;         }
+  ;       }
   ;     }
   ;   }
   ;   trust-anchor
   ;   {
   ;     type file
-  ;     file-name keys/default.ndncert ; the file name, by default this file should be placed in the
-  ;                                    ; same folder as this config file.
+  ;     ; certificate path, relative to this config file
+  ;     file-name keys/default.ndncert
   ;   }
-  ;   ; trust-anchor ; Can be repeated multiple times to specify multiple trust anchors
-  ;   ; {
-  ;   ;   type file
-  ;   ;   file-name keys/ndn-testbed.ndncert
-  ;   ; }
+  ;   ; trust-anchor entry may be repeated to specify multiple trust anchors
   ; }
 
   ; The following localhop_security should be enabled when NFD runs on a hub,

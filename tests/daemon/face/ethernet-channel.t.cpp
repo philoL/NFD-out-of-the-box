@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,18 +29,18 @@
 #include "tests/test-common.hpp"
 #include "ethernet-fixture.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
+
+using face::EthernetChannel;
 
 class EthernetChannelFixture : public EthernetFixture
 {
 protected:
-  unique_ptr<EthernetChannel>
+  shared_ptr<EthernetChannel>
   makeChannel()
   {
     BOOST_ASSERT(netifs.size() > 0);
-    return make_unique<EthernetChannel>(netifs.front(), 2_s);
+    return std::make_shared<EthernetChannel>(netifs.front(), 2_s);
   }
 };
 
@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_CASE(FaceClosure)
   BOOST_CHECK_EQUAL(channel->size(), 0);
 
   shared_ptr<nfd::Face> face;
-  channel->connect({0x00, 0x00, 0x5e, 0x00, 0x53, 0x5e}, {},
+  channel->connect(ethernet::Address({0x00, 0x00, 0x5e, 0x00, 0x53, 0x5e}), {},
                    [&face] (const shared_ptr<nfd::Face>& newFace) {
                      BOOST_REQUIRE(newFace != nullptr);
                      face = newFace;
@@ -89,6 +89,8 @@ BOOST_AUTO_TEST_CASE(FaceClosure)
   BOOST_CHECK_EQUAL(channel->size(), 1);
   BOOST_REQUIRE(face != nullptr);
 
+  BOOST_CHECK_EQUAL(face->getChannel().lock(), channel);
+
   face->close();
   g_io.poll();
   BOOST_CHECK_EQUAL(channel->size(), 0);
@@ -97,6 +99,4 @@ BOOST_AUTO_TEST_CASE(FaceClosure)
 BOOST_AUTO_TEST_SUITE_END() // TestEthernetChannel
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

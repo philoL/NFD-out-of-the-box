@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,8 +28,7 @@
 #include "internal-transport.hpp"
 #include "common/global.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 std::tuple<shared_ptr<Face>, shared_ptr<ndn::Face>>
 makeInternalFace(ndn::KeyChain& clientKeyChain)
@@ -46,8 +45,7 @@ makeInternalFace(ndn::KeyChain& clientKeyChain)
 
   auto clientFace = make_shared<ndn::Face>(clientTransport, getGlobalIoService(), clientKeyChain);
 
-  return std::make_tuple(face, clientFace);
+  return {face, clientFace};
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

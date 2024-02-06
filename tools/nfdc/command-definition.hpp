@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,77 +28,80 @@
 
 #include "command-arguments.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <iosfwd>
+#include <set>
+#include <stdexcept>
+#include <vector>
 
-/** \brief indicates argument value type
+namespace nfd::tools::nfdc {
+
+/** \brief Indicates argument value type.
  */
 enum class ArgValueType {
-  /** \brief boolean argument without value
+  /** \brief Boolean argument without value.
    *
-   *  The argument appears in CommandArguments as bool value 'true'.
+   *  The argument appears in CommandArguments as bool value `true`.
    *  It must not be declared as positional.
    */
   NONE,
 
-  /** \brief any arguments
+  /** \brief Any arguments.
    *
    *  The argument appears in CommandArguments as std::vector<std::string>.
    *  It must be declared as positional, and will consume all subsequent tokens.
    */
   ANY,
 
-  /** \brief boolean
+  /** \brief Boolean.
    *
    * The argument appears in CommandArguments as bool.
    */
   BOOLEAN,
 
-  /** \brief non-negative integer
+  /** \brief Non-negative integer.
    *
    *  The argument appears in CommandArguments as uint64_t.
    *  Acceptable input range is [0, std::numeric_limits<int64_t>::max()].
    */
   UNSIGNED,
 
-  /** \brief arbitrary string
+  /** \brief Arbitrary string.
    *
    *  The argument appears in CommandArguments as std::string.
    */
   STRING,
 
-  /** \brief report format 'xml' or 'text'
+  /** \brief Report format 'xml' or 'text'.
    *
    *  The argument appears in CommandArguments as nfd::tools::nfdc::ReportFormat.
    */
   REPORT_FORMAT,
 
-  /** \brief Name prefix
+  /** \brief Name prefix.
    *
    *  The argument appears in CommandArguments as ndn::Name.
    */
   NAME,
 
-  /** \brief FaceUri
+  /** \brief FaceUri.
    *
    *  The argument appears in CommandArguments as ndn::FaceUri.
    */
   FACE_URI,
 
-  /** \brief FaceId or FaceUri
+  /** \brief FaceId or FaceUri.
    *
    *  The argument appears in CommandArguments as either uint64_t or ndn::FaceUri.
    */
   FACE_ID_OR_URI,
 
-  /** \brief face persistency 'persistent' or 'permanent'
+  /** \brief Face persistency 'persistent' or 'permanent'.
    *
    *  The argument appears in CommandArguments as ndn::nfd::FacePersistency.
    */
   FACE_PERSISTENCY,
 
-  /** \brief route origin
+  /** \brief Route origin.
    *
    *  The argument appears in CommandArguments as ndn::nfd::RouteOrigin.
    */
@@ -108,21 +111,22 @@ enum class ArgValueType {
 std::ostream&
 operator<<(std::ostream& os, ArgValueType vt);
 
-/** \brief indicates whether an argument is required
+/** \brief Indicates whether an argument is required.
  */
 enum class Required {
   NO = false, ///< argument is optional
   YES = true  ///< argument is required
 };
 
-/** \brief indicates whether an argument can be specified as positional
+/** \brief Indicates whether an argument can be specified as positional.
  */
 enum class Positional {
   NO = false, ///< argument must be named
   YES = true  ///< argument can be specified as positional
 };
 
-/** \brief declares semantics of a command
+/**
+ * \brief Defines a command.
  */
 class CommandDefinition
 {
@@ -133,17 +137,17 @@ public:
     using std::invalid_argument::invalid_argument;
   };
 
-  CommandDefinition(const std::string& noun, const std::string& verb);
+  CommandDefinition(std::string_view noun, std::string_view verb);
 
   ~CommandDefinition();
 
-  const std::string
+  const std::string&
   getNoun() const
   {
     return m_noun;
   }
 
-  const std::string
+  const std::string&
   getVerb() const
   {
     return m_verb;
@@ -158,18 +162,18 @@ public: // help
     return m_title;
   }
 
-  /** \brief set one-line description
+  /** \brief Set one-line description.
    *  \param title one-line description, written in lower case
    */
   CommandDefinition&
-  setTitle(const std::string& title)
+  setTitle(std::string_view title)
   {
     m_title = title;
     return *this;
   }
 
 public: // arguments
-  /** \brief declare an argument
+  /** \brief Declare an argument.
    *  \param name argument name, must be unique
    *  \param valueType argument value type
    *  \param isRequired whether the argument is required
@@ -182,7 +186,7 @@ public: // arguments
          Positional allowPositional = Positional::NO,
          const std::string& metavar = "");
 
-  /** \brief parse a command line
+  /** \brief Parse a command line.
    *  \param tokens command line tokens
    *  \param start command line start position, after noun and verb
    *  \throw Error command line is invalid
@@ -191,12 +195,12 @@ public: // arguments
   parse(const std::vector<std::string>& tokens, size_t start = 0) const;
 
 private:
-  ndn::any
-  parseValue(ArgValueType valueType, const std::string& token) const;
+  static std::any
+  parseValue(ArgValueType valueType, const std::string& token);
 
 private:
-  std::string m_noun;
-  std::string m_verb;
+  const std::string m_noun;
+  const std::string m_verb;
   std::string m_title;
 
   struct Arg
@@ -211,8 +215,6 @@ private:
   std::vector<std::string> m_positionalArgs;
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_COMMAND_DEFINITION_HPP

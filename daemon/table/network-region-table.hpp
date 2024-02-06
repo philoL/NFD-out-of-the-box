@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,9 +28,11 @@
 
 #include "core/common.hpp"
 
+#include <set>
+
 namespace nfd {
 
-/** \brief stores a collection of producer region names
+/** \brief Stores a collection of producer region names.
  *
  *  This table is used in forwarding to process Interests with Link objects.
  *
@@ -40,17 +42,17 @@ namespace nfd {
 class NetworkRegionTable : public std::set<Name>
 {
 public:
-  /** \brief determines whether an Interest has reached a producer region
+  /** \brief Determines whether an Interest has reached a producer region.
    *  \param forwardingHint forwarding hint of an Interest
    *  \retval true the Interest has reached a producer region
    *  \retval false the Interest has not reached a producer region
    *
    *  If any delegation name in the forwarding hint is a prefix of any region name,
-   *  the Interest has reached the producer region and should be forwarded according to ‎its Name;
+   *  the Interest has reached the producer region and should be forwarded according to its Name;
    *  otherwise, the Interest should be forwarded according to the forwarding hint.
    */
   bool
-  isInProducerRegion(const DelegationList& forwardingHint) const;
+  isInProducerRegion(span<const Name> forwardingHint) const;
 };
 
 } // namespace nfd

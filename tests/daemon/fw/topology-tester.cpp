@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,9 +30,7 @@
 
 #include <ndn-cxx/encoding/encoding-buffer-fwd.hpp>
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
 
 using face::GenericLinkService;
 using face::InternalClientTransport;
@@ -74,10 +72,7 @@ void
 TopologyLink::addFace(TopologyNode i, shared_ptr<Face> face)
 {
   auto receiveCb = [this, i] (const Block& packet) { transmit(i, packet); };
-
-  auto ret = m_transports.emplace(std::piecewise_construct,
-                                  std::forward_as_tuple(i),
-                                  std::forward_as_tuple(std::move(face), std::move(receiveCb)));
+  auto ret = m_transports.try_emplace(i, std::move(face), std::move(receiveCb));
   BOOST_ASSERT(ret.second);
 
   auto& node = ret.first->second;
@@ -93,12 +88,12 @@ TopologyLink::transmit(TopologyNode i, const Block& packet)
 
   const auto& blockedDestinations = m_transports.at(i).blockedDestinations;
 
-  for (const auto& p : m_transports) {
-    if (p.first == i || blockedDestinations.count(p.first) > 0) {
+  for (const auto& [node, transport] : m_transports) {
+    if (node == i || blockedDestinations.count(node) > 0) {
       continue;
     }
 
-    getScheduler().schedule(m_delay, [packet, recipient = p.second.transport] {
+    getScheduler().schedule(m_delay, [packet, recipient = transport.transport] {
       recipient->receivePacket(packet);
     });
   }
@@ -130,7 +125,7 @@ TopologyAppLink::recover()
   m_clientTransport->connectToForwarder(m_forwarderTransport);
 }
 
-class TopologyBareLink::Observer : public face::InternalTransportBase
+class TopologyBareLink::Observer final : public face::InternalTransportBase
 {
 public:
   explicit
@@ -169,27 +164,27 @@ private:
   ///\todo #3941 call GenericLinkServiceCounters constructor in TopologyPcapLinkService constructor
 
   void
-  doSendInterest(const Interest& interest, const EndpointId& endpointId) override
+  doSendInterest(const Interest& interest) override
   {
     this->sentInterests.push_back(interest);
     this->sentInterests.back().setTag(std::make_shared<TopologyPcapTimestamp>(time::steady_clock::now()));
-    this->GenericLinkService::doSendInterest(interest, endpointId);
+    this->GenericLinkService::doSendInterest(interest);
   }
 
   void
-  doSendData(const Data& data, const EndpointId& endpointId) override
+  doSendData(const Data& data) override
   {
     this->sentData.push_back(data);
     this->sentData.back().setTag(std::make_shared<TopologyPcapTimestamp>(time::steady_clock::now()));
-    this->GenericLinkService::doSendData(data, endpointId);
+    this->GenericLinkService::doSendData(data);
   }
 
   void
-  doSendNack(const lp::Nack& nack, const EndpointId& endpointId) override
+  doSendNack(const lp::Nack& nack) override
   {
     this->sentNacks.push_back(nack);
     this->sentNacks.back().setTag(std::make_shared<TopologyPcapTimestamp>(time::steady_clock::now()));
-    this->GenericLinkService::doSendNack(nack, endpointId);
+    this->GenericLinkService::doSendNack(nack);
   }
 };
 
@@ -327,6 +322,4 @@ TopologyTester::addIntervalConsumer(ndn::Face& face, const Name& prefix,
   }
 }
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

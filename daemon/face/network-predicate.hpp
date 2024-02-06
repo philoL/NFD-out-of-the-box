@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,21 +28,22 @@
 
 #include "core/common.hpp"
 
+#include <boost/operators.hpp>
+#include <boost/property_tree/ptree_fwd.hpp>
+
 #include <ndn-cxx/net/network-interface.hpp>
 
-namespace nfd {
-namespace face {
+#include <set>
 
-class NetworkPredicateBase
+namespace nfd::face {
+
+class NetworkPredicateBase : private boost::equality_comparable<NetworkPredicateBase>
 {
 public:
   NetworkPredicateBase();
 
-  virtual
-  ~NetworkPredicateBase();
-
   /**
-   * \brief Set the whitelist to "*" and clear the blacklist
+   * \brief Set the whitelist to "*" and clear the blacklist.
    */
   void
   clear();
@@ -57,14 +58,24 @@ public:
   assign(std::initializer_list<std::pair<std::string, std::string>> whitelist,
          std::initializer_list<std::pair<std::string, std::string>> blacklist);
 
-  bool
-  operator==(const NetworkPredicateBase& other) const;
+protected:
+  // Explicitly declare the following four special member functions
+  // to avoid -Wdeprecated-copy-with-dtor warnings from clang.
 
-  bool
-  operator!=(const NetworkPredicateBase& other) const
-  {
-    return !this->operator==(other);
-  }
+  NetworkPredicateBase(const NetworkPredicateBase&) = delete;
+
+  NetworkPredicateBase(NetworkPredicateBase&&) = default;
+
+  NetworkPredicateBase&
+  operator=(const NetworkPredicateBase&) = delete;
+
+  NetworkPredicateBase&
+  operator=(NetworkPredicateBase&&) = default;
+
+  // NetworkPredicateBase is not supposed to be used polymorphically, so we make the destructor
+  // protected to prevent deletion of derived objects through a pointer to the base class,
+  // which would be UB when the destructor is non-virtual.
+  ~NetworkPredicateBase() = default;
 
 private:
   virtual bool
@@ -79,7 +90,15 @@ private:
   void
   parseList(std::set<std::string>& set, std::initializer_list<std::pair<std::string, std::string>> list);
 
-PUBLIC_WITH_TESTS_ELSE_PROTECTED:
+private: // non-member operators (hidden friends)
+  friend bool
+  operator==(const NetworkPredicateBase& lhs, const NetworkPredicateBase& rhs)
+  {
+    return lhs.m_whitelist == rhs.m_whitelist &&
+           lhs.m_blacklist == rhs.m_blacklist;
+  }
+
+NFD_PUBLIC_WITH_TESTS_ELSE_PROTECTED:
   std::set<std::string> m_whitelist;
   std::set<std::string> m_blacklist;
 };
@@ -94,7 +113,7 @@ PUBLIC_WITH_TESTS_ELSE_PROTECTED:
  * ndn::net::NetworkInterface is accepted if it matches any entry in the whitelist and none of
  * the entries in the blacklist.
  */
-class NetworkInterfacePredicate : public NetworkPredicateBase
+class NetworkInterfacePredicate final : public NetworkPredicateBase
 {
 public:
   bool
@@ -116,7 +135,7 @@ private:
  * 2001:db8:2::/64`) or a wildcard (`*`) that matches all IP addresses. An IP address is
  * accepted if it matches any entry in the whitelist and none of the entries in the blacklist.
  */
-class IpAddressPredicate : public NetworkPredicateBase
+class IpAddressPredicate final : public NetworkPredicateBase
 {
 public:
   bool
@@ -130,7 +149,6 @@ private:
   isRuleValid(const std::string& key, const std::string& value) final;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_NETWORK_PREDICATE_HPP

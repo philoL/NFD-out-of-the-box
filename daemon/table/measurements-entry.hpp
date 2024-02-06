@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,15 +28,19 @@
 
 #include "strategy-info-host.hpp"
 
-namespace nfd {
+#include <ndn-cxx/util/scheduler.hpp>
 
-namespace name_tree {
+namespace nfd::name_tree {
 class Entry;
-} // namespace name_tree
+} // namespace nfd::name_tree
 
-namespace measurements {
+namespace nfd::measurements {
 
-/** \brief Represents a Measurements entry
+class Measurements;
+
+/**
+ * \brief Represents an entry in the %Measurements table.
+ * \sa Measurements
  */
 class Entry : public StrategyInfoHost, noncopyable
 {
@@ -48,23 +52,22 @@ public:
   }
 
   const Name&
-  getName() const
+  getName() const noexcept
   {
     return m_name;
   }
 
 private:
   Name m_name;
-  time::steady_clock::TimePoint m_expiry = time::steady_clock::TimePoint::min();
-  scheduler::EventId m_cleanup;
+  time::steady_clock::time_point m_expiry = time::steady_clock::time_point::min();
+  ndn::scheduler::EventId m_cleanup;
 
   name_tree::Entry* m_nameTreeEntry = nullptr;
 
-  friend class Measurements;
-  friend class name_tree::Entry;
+  friend ::nfd::name_tree::Entry;
+  friend Measurements;
 };
 
-} // namespace measurements
-} // namespace nfd
+} // namespace nfd::measurements
 
 #endif // NFD_DAEMON_TABLE_MEASUREMENTS_ENTRY_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,8 +26,9 @@
 #include "internal-transport.hpp"
 #include "common/global.hpp"
 
-namespace nfd {
-namespace face {
+#include <boost/asio/post.hpp>
+
+namespace nfd::face {
 
 NFD_LOG_MEMBER_INIT(InternalForwarderTransport, InternalForwarderTransport);
 NFD_LOG_MEMBER_INIT(InternalClientTransport, InternalClientTransport);
@@ -48,14 +49,14 @@ InternalForwarderTransport::InternalForwarderTransport(const FaceUri& localUri, 
 void
 InternalForwarderTransport::receivePacket(const Block& packet)
 {
-  getGlobalIoService().post([this, packet] {
+  boost::asio::post(getGlobalIoService(), [this, packet] {
     NFD_LOG_FACE_TRACE("Received: " << packet.size() << " bytes");
     receive(packet);
   });
 }
 
 void
-InternalForwarderTransport::doSend(const Block& packet, const EndpointId&)
+InternalForwarderTransport::doSend(const Block& packet)
 {
   NFD_LOG_FACE_TRACE("Sending to " << m_peer);
 
@@ -106,7 +107,7 @@ InternalClientTransport::connectToForwarder(InternalForwarderTransport* forwarde
 void
 InternalClientTransport::receivePacket(const Block& packet)
 {
-  getGlobalIoService().post([this, packet] {
+  boost::asio::post(getGlobalIoService(), [this, packet] {
     NFD_LOG_TRACE("Received: " << packet.size() << " bytes");
     if (m_receiveCallback) {
       m_receiveCallback(packet);
@@ -123,15 +124,4 @@ InternalClientTransport::send(const Block& wire)
     m_forwarder->receivePacket(wire);
 }
 
-void
-InternalClientTransport::send(const Block& header, const Block& payload)
-{
-  ndn::EncodingBuffer encoder(header.size() + payload.size(), header.size() + payload.size());
-  encoder.appendByteArray(header.wire(), header.size());
-  encoder.appendByteArray(payload.wire(), payload.size());
-
-  send(encoder.block());
-}
-
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

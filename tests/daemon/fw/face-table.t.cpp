@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,8 +29,11 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
 
-namespace nfd {
-namespace tests {
+#include <ndn-cxx/util/concepts.hpp>
+
+namespace nfd::tests {
+
+NDN_CXX_ASSERT_FORWARD_ITERATOR(FaceTable::const_iterator);
 
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_FIXTURE_TEST_SUITE(TestFaceTable, GlobalIoFixture)
@@ -140,5 +143,4 @@ BOOST_AUTO_TEST_CASE(Enumerate)
 BOOST_AUTO_TEST_SUITE_END() // TestFaceTable
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

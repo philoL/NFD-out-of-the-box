@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,13 +26,12 @@
 #include "process-nack-traits.hpp"
 #include "common/logger.hpp"
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
 NFD_LOG_INIT(ProcessNackTraits);
 
 void
-ProcessNackTraitsBase::processNack(const Face& inFace, const lp::Nack& nack,
+ProcessNackTraitsBase::processNack(const lp::Nack& nack, const Face& inFace,
                                    const shared_ptr<pit::Entry>& pitEntry)
 {
   int nOutRecordsNotNacked = 0;
@@ -56,31 +55,24 @@ ProcessNackTraitsBase::processNack(const Face& inFace, const lp::Nack& nack,
 
   if (nOutRecordsNotNacked == 1) {
     BOOST_ASSERT(lastFaceNotNacked != nullptr);
-    pit::InRecordCollection::iterator inR = pitEntry->getInRecord(*lastFaceNotNacked);
+    auto inR = pitEntry->getInRecord(*lastFaceNotNacked);
     if (inR != pitEntry->in_end()) {
       // one out-record not Nacked, which is also a downstream
-      NFD_LOG_DEBUG(nack.getInterest() << " nack-from=" << inFace.getId() <<
-                    " nack=" << nack.getReason() <<
-                    " nack-to(bidirectional)=" << lastFaceNotNacked->getId() <<
-                    " out-nack=" << outNack.getReason());
+      NFD_LOG_NACK_FROM(nack, inFace.getId(), "bidirectional nack-to=" << lastFaceNotNacked->getId()
+                        << " out-nack=" << outNack.getReason());
       this->sendNackForProcessNackTraits(pitEntry, *lastFaceNotNacked, outNack);
       return;
     }
   }
 
   if (nOutRecordsNotNacked > 0) {
-    NFD_LOG_DEBUG(nack.getInterest() << " nack-from=" << inFace.getId() <<
-                  " nack=" << nack.getReason() <<
-                  " waiting=" << nOutRecordsNotNacked);
+    NFD_LOG_NACK_FROM(nack, inFace.getId(), "waiting=" << nOutRecordsNotNacked);
     // continue waiting
     return;
   }
 
-  NFD_LOG_DEBUG(nack.getInterest() << " nack-from=" << inFace.getId() <<
-                " nack=" << nack.getReason() <<
-                " nack-to=all out-nack=" << outNack.getReason());
+  NFD_LOG_NACK_FROM(nack, inFace.getId(), "nack-to=all out-nack=" << outNack.getReason());
   this->sendNacksForProcessNackTraits(pitEntry, outNack);
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

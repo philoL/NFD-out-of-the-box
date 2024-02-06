@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,74 +27,62 @@
 
 namespace nfd {
 
-static thread_local unique_ptr<boost::asio::io_service> g_ioService;
-static thread_local unique_ptr<Scheduler> g_scheduler;
-static boost::asio::io_service* g_mainIoService = nullptr;
-static boost::asio::io_service* g_ribIoService = nullptr;
+static thread_local std::unique_ptr<boost::asio::io_context> g_ioCtx;
+static thread_local std::unique_ptr<ndn::Scheduler> g_scheduler;
+static boost::asio::io_context* g_mainIoCtx = nullptr;
+static boost::asio::io_context* g_ribIoCtx = nullptr;
 
-boost::asio::io_service&
+boost::asio::io_context&
 getGlobalIoService()
 {
-  if (g_ioService == nullptr) {
-    g_ioService = make_unique<boost::asio::io_service>();
+  if (g_ioCtx == nullptr) {
+    g_ioCtx = std::make_unique<boost::asio::io_context>();
   }
-  return *g_ioService;
+  return *g_ioCtx;
 }
 
-Scheduler&
+ndn::Scheduler&
 getScheduler()
 {
   if (g_scheduler == nullptr) {
-    g_scheduler = make_unique<Scheduler>(getGlobalIoService());
+    g_scheduler = std::make_unique<ndn::Scheduler>(getGlobalIoService());
   }
   return *g_scheduler;
 }
 
-#ifdef WITH_TESTS
+#ifdef NFD_WITH_TESTS
 void
 resetGlobalIoService()
 {
   g_scheduler.reset();
-  g_ioService.reset();
+  g_ioCtx.reset();
 }
 #endif
 
-boost::asio::io_service&
+boost::asio::io_context&
 getMainIoService()
 {
-  BOOST_ASSERT(g_mainIoService != nullptr);
-  return *g_mainIoService;
+  BOOST_ASSERT(g_mainIoCtx != nullptr);
+  return *g_mainIoCtx;
 }
 
-boost::asio::io_service&
+boost::asio::io_context&
 getRibIoService()
 {
-  BOOST_ASSERT(g_ribIoService != nullptr);
-  return *g_ribIoService;
+  BOOST_ASSERT(g_ribIoCtx != nullptr);
+  return *g_ribIoCtx;
 }
 
 void
-setMainIoService(boost::asio::io_service* mainIo)
+setMainIoService(boost::asio::io_context* mainIo)
 {
-  g_mainIoService = mainIo;
+  g_mainIoCtx = mainIo;
 }
 
 void
-setRibIoService(boost::asio::io_service* ribIo)
+setRibIoService(boost::asio::io_context* ribIo)
 {
-  g_ribIoService = ribIo;
-}
-
-void
-runOnMainIoService(const std::function<void()>& f)
-{
-  getMainIoService().post(f);
-}
-
-void
-runOnRibIoService(const std::function<void()>& f)
-{
-  getRibIoService().post(f);
+  g_ribIoCtx = ribIo;
 }
 
 } // namespace nfd

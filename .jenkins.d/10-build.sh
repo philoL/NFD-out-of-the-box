@@ -1,45 +1,39 @@
 #!/usr/bin/env bash
-set -e
+set -eo pipefail
 
-JDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-source "$JDIR"/util.sh
+if [[ -z $DISABLE_ASAN ]]; then
+    ASAN="--with-sanitizer=address"
+fi
+if [[ $JOB_NAME == *"code-coverage" ]]; then
+    COVERAGE="--with-coverage"
+fi
+if [[ -n $DISABLE_PCH ]]; then
+    PCH="--without-pch"
+fi
 
 set -x
 
-git submodule init
-git submodule sync
-git submodule update
-
-if [[ $JOB_NAME == *"code-coverage" ]]; then
-    COVERAGE="--with-coverage"
-elif [[ -z $DISABLE_ASAN ]]; then
-    ASAN="--with-sanitizer=address"
-fi
-
-# Cleanup
-sudo_preserve_env PATH -- ./waf --color=yes distclean
-
 if [[ $JOB_NAME != *"code-coverage" && $JOB_NAME != *"limited-build" ]]; then
-  # Configure/build in optimized mode with tests
-  ./waf --color=yes configure --with-tests
-  ./waf --color=yes build -j${WAF_JOBS:-1}
+    # Build in release mode with tests and without precompiled headers
+    ./waf --color=yes configure --with-tests --without-pch
+    ./waf --color=yes build
 
-  # Cleanup
-  sudo_preserve_env PATH -- ./waf --color=yes distclean
+    # Cleanup
+    ./waf --color=yes distclean
 
-  # Configure/build in optimized mode without tests, but with "other tests"
-  ./waf --color=yes configure --with-other-tests
-  ./waf --color=yes build -j${WAF_JOBS:-1}
+    # Build in release mode without tests, but with "other tests"
+    ./waf --color=yes configure --with-other-tests $PCH
+    ./waf --color=yes build
 
-  # Cleanup
-  sudo_preserve_env PATH -- ./waf --color=yes distclean
+    # Cleanup
+    ./waf --color=yes distclean
 fi
 
-# Configure/build in debug mode with tests and without precompiled headers
-./waf --color=yes configure --debug --with-tests --without-pch $ASAN $COVERAGE
-./waf --color=yes build -j${WAF_JOBS:-1}
+# Build in debug mode with tests
+./waf --color=yes configure --debug --with-tests $ASAN $COVERAGE $PCH
+./waf --color=yes build
 
-# (tests will be run against debug version)
+# (tests will be run against the debug version)
 
 # Install
-sudo_preserve_env PATH -- ./waf --color=yes install
+sudo ./waf --color=yes install

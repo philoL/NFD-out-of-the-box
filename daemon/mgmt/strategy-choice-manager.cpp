@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,6 +30,8 @@
 
 #include <ndn-cxx/mgmt/nfd/strategy-choice.hpp>
 
+#include <boost/lexical_cast.hpp>
+
 namespace nfd {
 
 NFD_LOG_INIT(StrategyChoiceManager);
@@ -41,12 +43,11 @@ StrategyChoiceManager::StrategyChoiceManager(StrategyChoice& strategyChoice,
   , m_table(strategyChoice)
 {
   registerCommandHandler<ndn::nfd::StrategyChoiceSetCommand>("set",
-    bind(&StrategyChoiceManager::setStrategy, this, _4, _5));
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { setStrategy(std::forward<decltype(args)>(args)...); });
   registerCommandHandler<ndn::nfd::StrategyChoiceUnsetCommand>("unset",
-    bind(&StrategyChoiceManager::unsetStrategy, this, _4, _5));
-
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { unsetStrategy(std::forward<decltype(args)>(args)...); });
   registerStatusDatasetHandler("list",
-    bind(&StrategyChoiceManager::listChoices, this, _3));
+    [this] (auto&&, auto&&, auto&&... args) { listChoices(std::forward<decltype(args)>(args)...); });
 }
 
 void
@@ -63,9 +64,7 @@ StrategyChoiceManager::setStrategy(ControlParameters parameters,
   }
 
   NFD_LOG_DEBUG("strategy-choice/set(" << prefix << "," << strategy << "): OK");
-  bool hasEntry = false;
-  Name instanceName;
-  std::tie(hasEntry, instanceName) = m_table.get(prefix);
+  auto [hasEntry, instanceName] = m_table.get(prefix);
   BOOST_ASSERT_MSG(hasEntry, "StrategyChoice entry must exist after StrategyChoice::insert");
   parameters.setStrategy(instanceName);
   return done(ControlResponse(200, "OK").setBody(parameters.wireEncode()));

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,38 +28,45 @@
 
 #include "name-tree-hashtable.hpp"
 
-namespace nfd {
-namespace name_tree {
+#include <boost/operators.hpp>
+#include <boost/range/iterator_range_core.hpp>
+
+#include <functional>
+
+namespace nfd::name_tree {
 
 class NameTree;
 
-/** \brief a predicate to accept or reject an Entry in find operations
+/**
+ * \brief A predicate to accept or reject an Entry in find operations.
  */
 using EntrySelector = std::function<bool(const Entry&)>;
 
-/** \brief an EntrySelector that accepts every Entry
+/**
+ * \brief An #EntrySelector that accepts every Entry.
  */
 struct AnyEntry
 {
-  bool
-  operator()(const Entry&) const
+  constexpr bool
+  operator()(const Entry&) const noexcept
   {
     return true;
   }
 };
 
-/** \brief a predicate to accept or reject an Entry and its children
+/** \brief A predicate to accept or reject an Entry and its children.
  *  \return `.first` indicates whether entry should be accepted;
  *          `.second` indicates whether entry's children should be visited
  */
 using EntrySubTreeSelector = std::function<std::pair<bool, bool>(const Entry&)>;
 
-/** \brief an EntrySubTreeSelector that accepts every Entry and its children
+/**
+ * \brief An #EntrySubTreeSelector that accepts every Entry and its children.
  */
 struct AnyEntrySubTree
 {
-  std::pair<bool, bool>
-  operator()(const Entry&) const
+  constexpr std::pair<bool, bool>
+  operator()(const Entry&) const noexcept
   {
     return {true, true};
   }
@@ -67,66 +74,48 @@ struct AnyEntrySubTree
 
 class EnumerationImpl;
 
-/** \brief NameTree iterator
+/**
+ * \brief NameTree iterator.
  */
-class Iterator
+class Iterator : public boost::forward_iterator_helper<Iterator, const Entry>
 {
 public:
-  using iterator_category = std::forward_iterator_tag;
-  using value_type        = const Entry;
-  using difference_type   = std::ptrdiff_t;
-  using pointer           = value_type*;
-  using reference         = value_type&;
-
   Iterator();
 
   Iterator(shared_ptr<EnumerationImpl> impl, const Entry* ref);
 
   const Entry&
-  operator*() const
+  operator*() const noexcept
   {
     BOOST_ASSERT(m_impl != nullptr);
     return *m_entry;
   }
 
-  const Entry*
-  operator->() const
-  {
-    BOOST_ASSERT(m_impl != nullptr);
-    return m_entry;
-  }
-
   Iterator&
   operator++();
 
-  Iterator
-  operator++(int);
-
-  bool
-  operator==(const Iterator& other) const;
-
-  bool
-  operator!=(const Iterator& other) const
+  friend bool
+  operator==(const Iterator& lhs, const Iterator& rhs) noexcept
   {
-    return !this->operator==(other);
+    return lhs.m_entry == rhs.m_entry;
   }
 
 private:
-  /** \brief enumeration implementation; nullptr for end iterator
+  /** \brief Enumeration implementation; nullptr for end iterator.
    */
   shared_ptr<EnumerationImpl> m_impl;
 
-  /** \brief current entry; nullptr for uninitialized iterator
+  /** \brief Current entry; nullptr for uninitialized iterator.
    */
-  const Entry* m_entry;
+  const Entry* m_entry = nullptr;
 
-  /** \brief reference entry used by enumeration implementation
+  /** \brief Reference entry used by enumeration implementation.
    */
-  const Entry* m_ref;
+  const Entry* m_ref = nullptr;
 
-  /** \brief state used by enumeration implementation
+  /** \brief State used by enumeration implementation.
    */
-  int m_state;
+  int m_state = 0;
 
   friend std::ostream& operator<<(std::ostream&, const Iterator&);
   friend class FullEnumerationImpl;
@@ -137,7 +126,8 @@ private:
 std::ostream&
 operator<<(std::ostream& os, const Iterator& i);
 
-/** \brief enumeration operation implementation
+/**
+ * \brief Enumeration operation implementation.
  */
 class EnumerationImpl
 {
@@ -145,73 +135,76 @@ public:
   explicit
   EnumerationImpl(const NameTree& nt);
 
-  virtual
-  ~EnumerationImpl() = default;
-
   virtual void
   advance(Iterator& i) = 0;
+
+protected:
+  ~EnumerationImpl() = default;
 
 protected:
   const NameTree& nt;
   const Hashtable& ht;
 };
 
-/** \brief full enumeration implementation
+/**
+ * \brief Full enumeration implementation.
  */
-class FullEnumerationImpl : public EnumerationImpl
+class FullEnumerationImpl final : public EnumerationImpl
 {
 public:
   FullEnumerationImpl(const NameTree& nt, const EntrySelector& pred);
 
   void
-  advance(Iterator& i) override;
+  advance(Iterator& i) final;
 
 private:
   EntrySelector m_pred;
 };
 
-/** \brief partial enumeration implementation
+/**
+ * \brief Partial enumeration implementation.
  *
- *  Iterator::m_ref should be initialized to subtree root.
- *  Iterator::m_state LSB indicates whether to visit children of m_entry.
+ * Iterator::m_ref should be initialized to subtree root.
+ * Iterator::m_state LSB indicates whether to visit children of m_entry.
  */
-class PartialEnumerationImpl : public EnumerationImpl
+class PartialEnumerationImpl final : public EnumerationImpl
 {
 public:
   PartialEnumerationImpl(const NameTree& nt, const EntrySubTreeSelector& pred);
 
   void
-  advance(Iterator& i) override;
+  advance(Iterator& i) final;
 
 private:
   EntrySubTreeSelector m_pred;
 };
 
-/** \brief partial enumeration implementation
+/**
+ * \brief Partial enumeration implementation.
  *
- *  Iterator::m_ref should be initialized to longest prefix matched entry.
+ * Iterator::m_ref should be initialized to longest prefix matched entry.
  */
-class PrefixMatchImpl : public EnumerationImpl
+class PrefixMatchImpl final : public EnumerationImpl
 {
 public:
   PrefixMatchImpl(const NameTree& nt, const EntrySelector& pred);
 
 private:
   void
-  advance(Iterator& i) override;
+  advance(Iterator& i) final;
 
 private:
   EntrySelector m_pred;
 };
 
-/** \brief a Forward Range of name tree entries
+/**
+ * \brief A forward range of name tree entries.
  *
- *  This type has .begin() and .end() methods which return Iterator.
- *  This type is usable with range-based for.
+ * This type has `.begin()` and `.end()` methods which return Iterator.
+ * This type is usable with range-based for loops.
  */
 using Range = boost::iterator_range<Iterator>;
 
-} // namespace name_tree
-} // namespace nfd
+} // namespace nfd::name_tree
 
 #endif // NFD_DAEMON_TABLE_NAME_TREE_ITERATOR_HPP

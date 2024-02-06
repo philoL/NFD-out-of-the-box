@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,16 +25,17 @@
 
 #include "unix-stream-transport.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-NFD_LOG_MEMBER_INIT_SPECIALIZED(StreamTransport<boost::asio::local::stream_protocol>, UnixStreamTransport);
+namespace local = boost::asio::local;
 
-UnixStreamTransport::UnixStreamTransport(protocol::socket&& socket)
+NFD_LOG_MEMBER_INIT_SPECIALIZED(StreamTransport<local::stream_protocol>, UnixStreamTransport);
+
+UnixStreamTransport::UnixStreamTransport(local::stream_protocol::socket&& socket)
   : StreamTransport(std::move(socket))
 {
   static_assert(
-    std::is_same<std::remove_cv<protocol::socket::native_handle_type>::type, int>::value,
+    std::is_same_v<std::remove_cv_t<local::stream_protocol::socket::native_handle_type>, int>,
     "The native handle type for UnixStreamTransport sockets must be 'int'"
   );
 
@@ -48,5 +49,4 @@ UnixStreamTransport::UnixStreamTransport(protocol::socket&& socket)
   NFD_LOG_FACE_DEBUG("Creating transport");
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

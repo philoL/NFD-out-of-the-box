@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,11 +29,13 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
 
-namespace nfd {
-namespace pit {
-namespace tests {
+#include <boost/test/data/test_case.hpp>
 
-using namespace nfd::tests;
+namespace bdata = boost::unit_test::data;
+
+namespace nfd::tests {
+
+using namespace nfd::pit;
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestPitEntry, GlobalIoFixture)
@@ -47,14 +49,14 @@ BOOST_AUTO_TEST_CASE(CanMatch)
   auto interest1 = makeInterest("/B");
   BOOST_CHECK_EQUAL(entry.canMatch(*interest1), false);
 
-  auto interest2 = makeInterest("/A", false, nullopt, 27956);
+  auto interest2 = makeInterest("/A", false, std::nullopt, 27956);
   BOOST_CHECK_EQUAL(entry.canMatch(*interest2), true);
 
   auto interest3 = makeInterest("/A", false, 6210_ms);
   BOOST_CHECK_EQUAL(entry.canMatch(*interest3), true);
 
   auto interest4 = makeInterest("/A");
-  interest4->setForwardingHint({{10, "/telia/terabits"}, {20, "/ucla/cs"}});
+  interest4->setForwardingHint({"/telia/terabits", "/ucla/cs"});
   BOOST_CHECK_EQUAL(entry.canMatch(*interest4), false); // expected failure until #3162
 
   auto interest5 = makeInterest("/A", true);
@@ -166,17 +168,42 @@ BOOST_AUTO_TEST_CASE(InOutRecords)
   BOOST_CHECK(entry.getOutRecord(*face2) == entry.out_end());
 }
 
-BOOST_AUTO_TEST_CASE(Lifetime)
+const time::milliseconds lifetimes[] = {
+  -1_ms, // unset
+  1_ms,
+  ndn::DEFAULT_INTEREST_LIFETIME,
+  8624_ms,
+  86400_s,
+  time::milliseconds(std::numeric_limits<time::milliseconds::rep>::max()),
+};
+
+BOOST_DATA_TEST_CASE(Lifetime, bdata::make(lifetimes), lifetime)
 {
   auto interest = makeInterest("/7oIEurbgy6");
+  if (lifetime >= 0_ms) {
+    interest->setInterestLifetime(lifetime);
+  }
+
+  auto expectedLifetime = lifetime;
+  if (lifetime < 0_ms) {
+    expectedLifetime = ndn::DEFAULT_INTEREST_LIFETIME;
+  }
+  else if (lifetime > 10_days) {
+    expectedLifetime = 10_days;
+  }
+
   auto face = make_shared<DummyFace>();
   Entry entry(*interest);
 
   auto inIt = entry.insertOrUpdateInRecord(*face, *interest);
-  BOOST_CHECK_GT(inIt->getExpiry(), time::steady_clock::now());
+  auto expiryFromNow = inIt->getExpiry() - time::steady_clock::now();
+  BOOST_CHECK_GT(expiryFromNow, 0_ms);
+  BOOST_CHECK_LT(time::abs(expiryFromNow - expectedLifetime), 100_ms);
 
   auto outIt = entry.insertOrUpdateOutRecord(*face, *interest);
-  BOOST_CHECK_GT(outIt->getExpiry(), time::steady_clock::now());
+  expiryFromNow = outIt->getExpiry() - time::steady_clock::now();
+  BOOST_CHECK_GT(expiryFromNow, 0_ms);
+  BOOST_CHECK_LT(time::abs(expiryFromNow - expectedLifetime), 100_ms);
 }
 
 BOOST_AUTO_TEST_CASE(OutRecordNack)
@@ -210,6 +237,4 @@ BOOST_AUTO_TEST_CASE(OutRecordNack)
 BOOST_AUTO_TEST_SUITE_END() // TestPitEntry
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace pit
-} // namespace nfd
+} // namespace nfd::tests

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,52 +33,45 @@
 #include "tests/key-chain-fixture.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-#include <ndn-cxx/security/command-interest-signer.hpp>
+#include <ndn-cxx/security/interest-signer.hpp>
 #include <ndn-cxx/util/dummy-client-face.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
-/** \brief A fixture that provides a CommandInterestSigner.
+/**
+ * \brief A fixture that wraps an InterestSigner.
  */
-class CommandInterestSignerFixture : public GlobalIoTimeFixture, public KeyChainFixture
+class InterestSignerFixture : public GlobalIoTimeFixture, public KeyChainFixture
 {
 protected:
-  CommandInterestSignerFixture();
+  InterestSignerFixture();
 
-  /** \brief sign a command Interest
-   *  \param name command name include prefix and parameters
-   *  \param identity signing identity
-   *  \return a command Interest
+  /**
+   * \brief Create a ControlCommand request.
+   * \param commandName Command name including prefix, such as `/localhost/nfd/fib/add-nexthop`
+   * \param params Command parameters
+   * \param format Signed Interest format
+   * \param identity Signing identity
    */
   Interest
-  makeCommandInterest(const Name& name, const Name& identity = DEFAULT_COMMAND_SIGNER_IDENTITY);
-
-  /** \brief create a ControlCommand request
-   *  \param commandName command name including prefix, such as "/localhost/nfd/fib/add-nexthop"
-   *  \param params command parameters
-   *  \param identity signing identity
-   *  \return a command Interest
-   */
-  Interest
-  makeControlCommandRequest(Name commandName, const ControlParameters& params,
+  makeControlCommandRequest(Name commandName,
+                            const ControlParameters& params = {},
+                            ndn::security::SignedInterestFormat format = ndn::security::SignedInterestFormat::V03,
                             const Name& identity = DEFAULT_COMMAND_SIGNER_IDENTITY);
 
 protected:
-  static const Name DEFAULT_COMMAND_SIGNER_IDENTITY;
+  static inline const Name DEFAULT_COMMAND_SIGNER_IDENTITY{"/InterestSignerFixture-identity"};
 
 private:
-  ndn::security::CommandInterestSigner m_commandInterestSigner;
+  ndn::security::InterestSigner m_signer{m_keyChain};
 };
 
 /**
  * @brief A collection of common functions shared by all manager's test fixtures.
  */
-class ManagerCommonFixture : public CommandInterestSignerFixture
+class ManagerCommonFixture : public InterestSignerFixture
 {
 public: // initialize
-  ManagerCommonFixture();
-
   /**
    * @brief Add `/localhost/nfd` as a top prefix to the dispatcher.
    *
@@ -89,7 +82,7 @@ public: // initialize
 
 public: // test
   /**
-   * @brief cause management to receive an Interest
+   * @brief Cause management to receive an Interest.
    *
    * call DummyClientFace::receive to receive Interest and then call advanceClocks to ensure
    * the Interest dispatched
@@ -100,11 +93,10 @@ public: // test
   receiveInterest(const Interest& interest);
 
 public: // verify
-  ControlResponse
+  static ControlResponse
   makeResponse(uint32_t code, const std::string& text, const ControlParameters& parameters);
 
-  enum class CheckResponseResult
-  {
+  enum class CheckResponseResult {
     OK,
     OUT_OF_BOUNDARY,
     WRONG_NAME,
@@ -117,7 +109,7 @@ public: // verify
   };
 
   /**
-   * @brief check a specified response data with the expected ControlResponse
+   * @brief Check a specified response data with the expected ControlResponse.
    *
    * @param idx the index of the specified Data in m_responses
    * @param expectedDataName the expected name of this Data
@@ -143,7 +135,7 @@ public: // verify
                 int expectedContentType = -1);
 
   /**
-   * @brief concatenate specified response Data into a single block
+   * @brief Concatenate specified response Data into a single block.
    *
    * @param startIndex the start index in m_responses
    * @param nResponses the number of response to concatenate
@@ -154,9 +146,9 @@ public: // verify
   concatenateResponses(size_t startIndex = 0, size_t nResponses = 0);
 
 protected:
-  ndn::util::DummyClientFace m_face;
-  Dispatcher m_dispatcher;
-  std::vector<Data>& m_responses; ///< a reference to m_face.sentData
+  ndn::DummyClientFace m_face{g_io, m_keyChain, {true, true}};
+  Dispatcher m_dispatcher{m_face, m_keyChain};
+  std::vector<Data>& m_responses{m_face.sentData};
 };
 
 std::ostream&
@@ -165,7 +157,7 @@ operator<<(std::ostream& os, ManagerCommonFixture::CheckResponseResult result);
 class ManagerFixtureWithAuthenticator : public ManagerCommonFixture
 {
 public:
-  /** \brief grant m_identityName privilege to sign commands for the management module
+  /** \brief Grant m_identityName privilege to sign commands for the management module.
    */
   void
   setPrivilege(const std::string& privilege);
@@ -188,7 +180,7 @@ public:
   }
 };
 
-template<int CODE>
+template<auto CODE>
 class CommandFailure
 {
 public:
@@ -201,7 +193,6 @@ public:
   }
 };
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_MGMT_MANAGER_COMMON_FIXTURE_HPP

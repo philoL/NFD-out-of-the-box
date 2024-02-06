@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,18 +29,14 @@
 #include "common/config-file.hpp"
 
 #include <ndn-cxx/mgmt/dispatcher.hpp>
+#include <ndn-cxx/security/validator.hpp>
 
-namespace ndn {
-namespace security {
-namespace v2 {
-class Validator;
-} // namespace v2
-} // namespace security
-} // namespace ndn
+#include <unordered_map>
 
 namespace nfd {
 
-/** \brief Provides ControlCommand authorization according to NFD configuration file.
+/**
+ * \brief Provides ControlCommand authorization according to NFD's configuration file.
  */
 class CommandAuthenticator : public std::enable_shared_from_this<CommandAuthenticator>, noncopyable
 {
@@ -51,10 +47,10 @@ public:
   void
   setConfigFile(ConfigFile& configFile);
 
-  /** \return an Authorization function for module/verb command
+  /** \brief Returns an Authorization function for `module/verb` command.
    *  \param module management module name
-   *  \param verb command verb; currently it's ignored
-   *  \note This must be called before parsing configuration file
+   *  \param verb command verb; currently ignored
+   *  \note This must be called before parsing the configuration file.
    */
   ndn::mgmt::Authorization
   makeAuthorization(const std::string& module, const std::string& verb);
@@ -62,15 +58,15 @@ public:
 private:
   CommandAuthenticator();
 
-  /** \brief process "authorizations" section
+  /** \brief Process `authorizations` section.
    *  \throw ConfigFile::Error on parse error
    */
   void
   processConfig(const ConfigSection& section, bool isDryRun, const std::string& filename);
 
 private:
-  /// module => validator
-  std::unordered_map<std::string, shared_ptr<ndn::security::v2::Validator>> m_validators;
+  // module => validator
+  std::unordered_map<std::string, shared_ptr<ndn::security::Validator>> m_validators;
 };
 
 } // namespace nfd

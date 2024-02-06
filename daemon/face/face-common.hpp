@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,12 +26,16 @@
 #ifndef NFD_DAEMON_FACE_FACE_COMMON_HPP
 #define NFD_DAEMON_FACE_FACE_COMMON_HPP
 
-#include "core/common.hpp"
+#include "ethernet-protocol.hpp"
+#include "tcp-protocol.hpp"
+#include "udp-protocol.hpp"
 #include "common/logger.hpp"
 
 #include <ndn-cxx/encoding/nfd-constants.hpp>
+#include <ndn-cxx/net/face-uri.hpp>
 
 #include <boost/logic/tribool.hpp>
+#include <variant>
 
 namespace nfd {
 namespace face {
@@ -39,54 +43,66 @@ namespace face {
 class Face;
 class LinkService;
 
-/** \brief Identifies a face.
+/**
+ * \brief Identifies a face.
  */
 using FaceId = uint64_t;
 
-/// indicates an invalid FaceId
-const FaceId INVALID_FACEID = ndn::nfd::INVALID_FACE_ID;
-/// identifies the InternalFace used in management
-const FaceId FACEID_INTERNAL_FACE = 1;
-/// identifies a packet comes from the ContentStore
-const FaceId FACEID_CONTENT_STORE = 254;
-/// identifies the NullFace that drops every packet
-const FaceId FACEID_NULL = 255;
-/// upper bound of reserved FaceIds
-const FaceId FACEID_RESERVED_MAX = 255;
+/// Indicates an invalid FaceId
+inline constexpr FaceId INVALID_FACEID = ndn::nfd::INVALID_FACE_ID;
+/// Identifies the InternalFace used in management
+inline constexpr FaceId FACEID_INTERNAL_FACE = 1;
+/// Identifies a packet comes from the ContentStore
+inline constexpr FaceId FACEID_CONTENT_STORE = 254;
+/// Identifies the NullFace that drops every packet
+inline constexpr FaceId FACEID_NULL = 255;
+/// Upper bound of reserved FaceIds
+inline constexpr FaceId FACEID_RESERVED_MAX = 255;
 
-/** \brief Identifies a remote endpoint on the link.
+/**
+ * \brief Minimum MTU that may be set.
  *
- *  This ID is only meaningful in the context of the same Transport.
- *  Incoming packets from the same remote endpoint have the same EndpointId,
- *  and incoming packets from different remote endpoints have different EndpointIds.
- *
- *  Typically, a point-to-point Transport has only one meaningful EndpointId (usually 0).
+ * This is done to ensure the NDNLPv2 fragmentation feature functions properly.
  */
-using EndpointId = uint64_t;
+inline constexpr ssize_t MIN_MTU = 64;
 
-/** \brief Parameters used to set Transport properties or LinkService options on a newly created face.
+/**
+ * \brief Identifies a remote endpoint on the link.
  *
- *  Parameters are passed as a struct rather than individually, so that a future change in the list
- *  of parameters does not require an update to the method signature in all subclasses.
+ * This ID is only meaningful in the context of the same Transport.
+ * Incoming packets from the same remote endpoint have the same EndpointId,
+ * and incoming packets from different remote endpoints have different EndpointIds.
+ *
+ * Typically, a point-to-point Transport has only one meaningful EndpointId,
+ * represented by `std::monostate`.
+ */
+using EndpointId = std::variant<std::monostate, ethernet::Address, udp::Endpoint, tcp::Endpoint>;
+
+/**
+ * \brief Parameters used to set Transport properties or LinkService options on a newly created face.
+ *
+ * Parameters are passed as a struct rather than individually, so that a future change in the list
+ * of parameters does not require an update to the method signature in all subclasses.
  */
 struct FaceParams
 {
   ndn::nfd::FacePersistency persistency = ndn::nfd::FACE_PERSISTENCY_PERSISTENT;
-  optional<time::nanoseconds> baseCongestionMarkingInterval;
-  optional<uint64_t> defaultCongestionThreshold;
-  optional<ssize_t> mtu;
+  std::optional<time::nanoseconds> baseCongestionMarkingInterval;
+  std::optional<uint64_t> defaultCongestionThreshold;
+  std::optional<ssize_t> mtu;
   bool wantLocalFields = false;
   bool wantLpReliability = false;
   boost::logic::tribool wantCongestionMarking = boost::logic::indeterminate;
 };
 
-/** \brief For internal use by FaceLogging macros.
+/**
+ * \brief For internal use by FaceLogging macros.
  *
- *  FaceLogHelper wraps a reference to Face, LinkService, or Transport object.
+ * FaceLogHelper wraps a reference to Face, LinkService, or Transport object.
  *
- *  `std::ostream& operator<<(std::ostream& os, const FaceLogHelper<T>& flh)`
- *  should be specialized to print "[id=888,local=scheme://local/uri,remote=scheme://remote/uri] "
- *  which will appear as part of the log message.
+ * `std::ostream& operator<<(std::ostream& os, const FaceLogHelper<T>& flh)`
+ * should be specialized to print "[id=888,local=scheme://local/uri,remote=scheme://remote/uri] "
+ * which will appear as part of the log message.
  */
 template<typename T>
 class FaceLogHelper
@@ -106,10 +122,12 @@ public:
 
 using face::EndpointId;
 using face::FaceId;
+using ::ndn::FaceUri;
 
 } // namespace nfd
 
-/** \defgroup FaceLogging Face logging macros
+/**
+ * \defgroup FaceLogging Face logging macros.
  *
  * These macros augment the log message with some face-specific information,
  * such as the face ID, that are useful to distinguish which face produced the
@@ -122,9 +140,7 @@ using face::FaceId;
 // implementation detail
 #define NFD_LOG_FACE(level, msg) NFD_LOG_##level( \
   ::nfd::face::FaceLogHelper< \
-    typename std::remove_cv< \
-      typename std::remove_reference<decltype(*this)>::type \
-    >::type \
+    std::remove_cv_t<std::remove_reference_t<decltype(*this)>> \
   >(*this) \
   << msg)
 /** \endcond */

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,28 +28,21 @@
 #include "common/logger.hpp"
 #include "face/channel.hpp"
 
-#include <ndn-cxx/util/concepts.hpp>
+#include <boost/asio/defer.hpp>
 
 namespace nfd {
 
-NDN_CXX_ASSERT_FORWARD_ITERATOR(FaceTable::const_iterator);
-
 NFD_LOG_INIT(FaceTable);
 
-FaceTable::FaceTable()
-  : m_lastFaceId(face::FACEID_RESERVED_MAX)
-{
-}
-
 Face*
-FaceTable::get(FaceId id) const
+FaceTable::get(FaceId id) const noexcept
 {
   auto i = m_faces.find(id);
   return i == m_faces.end() ? nullptr : i->second.get();
 }
 
 size_t
-FaceTable::size() const
+FaceTable::size() const noexcept
 {
   return m_faces.size();
 }
@@ -76,19 +69,20 @@ FaceTable::addReserved(shared_ptr<Face> face, FaceId faceId)
 }
 
 void
-FaceTable::addImpl(shared_ptr<Face> face, FaceId faceId)
+FaceTable::addImpl(shared_ptr<Face> facePtr, FaceId faceId)
 {
-  face->setId(faceId);
-  auto ret = m_faces.emplace(faceId, face);
-  BOOST_VERIFY(ret.second);
+  facePtr->setId(faceId);
+  auto [it, isNew] = m_faces.try_emplace(faceId, std::move(facePtr));
+  BOOST_VERIFY(isNew);
+  auto& face = *it->second;
 
   NFD_LOG_INFO("Added face id=" << faceId <<
-               " remote=" << face->getRemoteUri() <<
-               " local=" << face->getLocalUri());
+               " remote=" << face.getRemoteUri() <<
+               " local=" << face.getLocalUri());
 
-  connectFaceClosedSignal(*face, [=] { remove(faceId); });
+  connectFaceClosedSignal(face, [this, faceId] { remove(faceId); });
 
-  this->afterAdd(*face);
+  this->afterAdd(face);
 }
 
 void
@@ -108,7 +102,7 @@ FaceTable::remove(FaceId faceId)
                " local=" << face->getLocalUri());
 
   // defer Face deallocation, so that Transport isn't deallocated during afterStateChange signal
-  getGlobalIoService().post([face] {});
+  boost::asio::defer(getGlobalIoService(), [face] {});
 }
 
 FaceTable::ForwardRange

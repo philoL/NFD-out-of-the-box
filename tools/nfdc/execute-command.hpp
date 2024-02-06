@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2017,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,33 +27,32 @@
 #define NFD_TOOLS_NFDC_EXECUTE_COMMAND_HPP
 
 #include "command-arguments.hpp"
+
 #include <ndn-cxx/face.hpp>
 #include <ndn-cxx/mgmt/nfd/command-options.hpp>
 #include <ndn-cxx/mgmt/nfd/controller.hpp>
 #include <ndn-cxx/mgmt/nfd/control-command.hpp>
 #include <ndn-cxx/mgmt/nfd/control-parameters.hpp>
 #include <ndn-cxx/mgmt/nfd/control-response.hpp>
-#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
 #include <ndn-cxx/security/key-chain.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <functional>
+#include <iosfwd>
 
-using ndn::Face;
-using ndn::KeyChain;
+namespace nfd::tools::nfdc {
+
 using ndn::nfd::ControlParameters;
 using ndn::nfd::ControlResponse;
-using ndn::nfd::Controller;
 
-/** \brief context for command execution
+/**
+ * \brief Context for command execution.
  */
 class ExecuteContext
 {
 public:
   /** \return timeout for each step
    */
-  time::nanoseconds
+  ndn::time::nanoseconds
   getTimeout() const;
 
   ndn::nfd::CommandOptions
@@ -62,36 +61,34 @@ public:
   /** \return handler for command execution failure
    *  \param commandName command name used in error message (present continuous tense)
    */
-  Controller::CommandFailCallback
+  ndn::nfd::CommandFailureCallback
   makeCommandFailureHandler(const std::string& commandName);
 
   /** \return handler for dataset retrieval failure
    *  \param datasetName dataset name used in error message (noun phrase)
    */
-  Controller::DatasetFailCallback
+  ndn::nfd::DatasetFailureCallback
   makeDatasetFailureHandler(const std::string& datasetName);
 
 public:
-  const std::string& noun;
-  const std::string& verb;
+  std::string_view noun;
+  std::string_view verb;
   const CommandArguments& args;
 
   int exitCode; ///< program exit code
   std::ostream& out; ///< output stream
   std::ostream& err; ///< error stream
 
-  Face& face;
-  KeyChain& keyChain;
-  ///\todo validator
-  Controller& controller;
+  ndn::Face& face;
+  ndn::KeyChain& keyChain;
+  ndn::nfd::Controller& controller;
 };
 
-/** \brief a function to execute a command
+/**
+ * \brief A function to execute a command.
  */
-using ExecuteCommand = std::function<void(ExecuteContext& ctx)>;
+using ExecuteCommand = std::function<void(ExecuteContext&)>;
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_EXECUTE_COMMAND_HPP

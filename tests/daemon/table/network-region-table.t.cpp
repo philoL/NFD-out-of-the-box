@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,15 +28,14 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestNetworkRegionTable, GlobalIoFixture)
 
 BOOST_AUTO_TEST_CASE(InProducerRegion)
 {
-  DelegationList fh{{10, "/telia/terabits"}, {20, "/ucla/cs"}};
+  const std::vector<Name> fh{"/telia/terabits", "/ucla/cs"};
 
   NetworkRegionTable nrt1;
   nrt1.insert("/verizon");
@@ -59,5 +58,4 @@ BOOST_AUTO_TEST_CASE(InProducerRegion)
 BOOST_AUTO_TEST_SUITE_END() // TestNetworkRegionTable
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

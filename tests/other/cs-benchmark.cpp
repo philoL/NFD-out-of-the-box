@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,23 +26,21 @@
 #include "benchmark-helpers.hpp"
 #include "table/cs.hpp"
 
-#include <ndn-cxx/security/signature-sha256-with-rsa.hpp>
-
+#include <functional>
 #include <iostream>
 
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
 #include <valgrind/callgrind.h>
 #endif
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class CsBenchmarkFixture
 {
 protected:
   CsBenchmarkFixture()
   {
-#ifdef _DEBUG
+#ifndef NDEBUG
     std::cerr << "Benchmark compiled in debug mode is unreliable, please compile in release mode.\n";
 #endif
 
@@ -52,7 +50,7 @@ protected:
   static time::microseconds
   timedRun(const std::function<void()>& f)
   {
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
     CALLGRIND_START_INSTRUMENTATION;
 #endif
 
@@ -60,7 +58,7 @@ protected:
     f();
     auto t2 = time::steady_clock::now();
 
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
     CALLGRIND_STOP_INSTRUMENTATION;
 #endif
 
@@ -70,10 +68,9 @@ protected:
   static shared_ptr<Data>
   makeData(const Name& name)
   {
-    auto data = make_shared<Data>(name);
-    ndn::SignatureSha256WithRsa fakeSignature;
-    fakeSignature.setValue(ndn::encoding::makeEmptyBlock(tlv::SignatureValue));
-    data->setSignature(fakeSignature);
+    auto data = std::make_shared<Data>(name);
+    data->setSignatureInfo(ndn::SignatureInfo(tlv::NullSignature));
+    data->setSignatureValue(std::make_shared<ndn::Buffer>());
     data->wireEncode();
     return data;
   }
@@ -81,11 +78,11 @@ protected:
   void
   find(const Interest& interest)
   {
-    cs.find(interest, bind([]{}), bind([]{}));
+    cs.find(interest, [] (auto&&...) {}, [] (auto&&...) {});
   }
 
 protected:
-  typedef std::function<Name(size_t)> NameGenerator;
+  using NameGenerator = std::function<Name (size_t)>;
 
   class SimpleNameGenerator
   {
@@ -115,9 +112,7 @@ protected:
     std::vector<shared_ptr<Interest>> workload(count);
     for (size_t i = 0; i < count; ++i) {
       Name name = genName(i);
-      auto interest = make_shared<Interest>(name);
-      interest->setCanBePrefix(false);
-      workload[i] = interest;
+      workload[i] = std::make_shared<Interest>(name);
     }
     return workload;
   }
@@ -215,5 +210,4 @@ BOOST_FIXTURE_TEST_CASE(FindCanBePrefixHit, CsBenchmarkFixture)
   std::cout << "find(CanBePrefix-hit) " << (N_INTERESTS * N_CHILDREN * REPEAT) << ": " << d << std::endl;
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,9 +29,7 @@
 
 #include <ndn-cxx/lp/tags.hpp>
 
-namespace nfd {
-namespace cs {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestCs, CsFixture)
@@ -264,17 +262,15 @@ BOOST_AUTO_TEST_CASE(Enumeration)
   insert(12, nameAB);
   insert(4, nameD);
 
-  std::set<Name> expected = {nameA, nameAB, nameABC, nameD};
+  const std::set<Name> expected{nameA, nameAB, nameABC, nameD};
   std::set<Name> actual;
   for (const auto& csEntry : cs) {
     actual.insert(csEntry.getName());
   }
-  BOOST_CHECK_EQUAL_COLLECTIONS(actual.begin(), actual.end(), expected.begin(), expected.end());
+  BOOST_TEST(actual == expected, boost::test_tools::per_element());
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestCs
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace cs
-} // namespace nfd
+} // namespace nfd::tests

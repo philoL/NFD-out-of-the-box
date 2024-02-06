@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,10 +24,9 @@
  */
 
 #include "execute-command.hpp"
+#include "core/common.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 time::nanoseconds
 ExecuteContext::getTimeout() const
@@ -39,10 +38,10 @@ ndn::nfd::CommandOptions
 ExecuteContext::makeCommandOptions() const
 {
   return ndn::nfd::CommandOptions()
-           .setTimeout(time::duration_cast<time::milliseconds>(this->getTimeout()));
+         .setTimeout(time::duration_cast<time::milliseconds>(this->getTimeout()));
 }
 
-Controller::CommandFailCallback
+ndn::nfd::CommandFailureCallback
 ExecuteContext::makeCommandFailureHandler(const std::string& commandName)
 {
   return [=] (const ControlResponse& resp) {
@@ -51,7 +50,7 @@ ExecuteContext::makeCommandFailureHandler(const std::string& commandName)
   };
 }
 
-Controller::DatasetFailCallback
+ndn::nfd::DatasetFailureCallback
 ExecuteContext::makeDatasetFailureHandler(const std::string& datasetName)
 {
   return [=] (uint32_t code, const std::string& reason) {
@@ -60,6 +59,4 @@ ExecuteContext::makeDatasetFailureHandler(const std::string& datasetName)
   };
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

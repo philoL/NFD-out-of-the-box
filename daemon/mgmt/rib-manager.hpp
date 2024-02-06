@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,6 +32,7 @@
 #include <ndn-cxx/mgmt/nfd/controller.hpp>
 #include <ndn-cxx/mgmt/nfd/face-event-notification.hpp>
 #include <ndn-cxx/mgmt/nfd/face-monitor.hpp>
+#include <ndn-cxx/mgmt/nfd/face-status.hpp>
 #include <ndn-cxx/security/validator-config.hpp>
 #include <ndn-cxx/util/scheduler.hpp>
 
@@ -46,7 +47,7 @@ class RibUpdate;
  * @brief Implements the RIB Management of NFD Management Protocol.
  * @sa https://redmine.named-data.net/projects/nfd/wiki/RibMgmt
  */
-class RibManager : public ManagerBase
+class RibManager final : public ManagerBase
 {
 public:
   RibManager(rib::Rib& rib, ndn::Face& face, ndn::KeyChain& keyChain,
@@ -99,7 +100,7 @@ public: // self-learning support
   };
 
   using SlAnnounceCallback = std::function<void(SlAnnounceResult res)>;
-  using SlFindAnnCallback = std::function<void(optional<ndn::PrefixAnnouncement>)>;
+  using SlFindAnnCallback = std::function<void(std::optional<ndn::PrefixAnnouncement>)>;
 
   /** \brief Insert a route by prefix announcement from self-learning strategy.
    *  \param pa A prefix announcement. It must contain the Data.
@@ -176,7 +177,7 @@ private: // RIB and FibUpdater actions
    *  \param done completion callback
    */
   void
-  beginAddRoute(const Name& name, rib::Route route, optional<time::nanoseconds> expires,
+  beginAddRoute(const Name& name, rib::Route route, std::optional<time::nanoseconds> expires,
                 const std::function<void(RibUpdateResult)>& done);
 
   /** \brief Start removing a route from RIB and FIB.
@@ -199,28 +200,25 @@ private: // management Dispatcher related
   /** \brief Serve rib/register command.
    */
   void
-  registerEntry(const Name& topPrefix, const Interest& interest,
-                ControlParameters parameters,
+  registerEntry(const Interest& interest, ControlParameters parameters,
                 const ndn::mgmt::CommandContinuation& done);
 
   /** \brief Serve rib/unregister command.
    */
   void
-  unregisterEntry(const Name& topPrefix, const Interest& interest,
-                  ControlParameters parameters,
+  unregisterEntry(const Interest& interest, ControlParameters parameters,
                   const ndn::mgmt::CommandContinuation& done);
 
   /** \brief Serve rib/list dataset.
    */
   void
-  listEntries(const Name& topPrefix, const Interest& interest,
-              ndn::mgmt::StatusDatasetContext& context);
+  listEntries(ndn::mgmt::StatusDatasetContext& context);
 
   void
   setFaceForSelfRegistration(const Interest& request, ControlParameters& parameters);
 
   ndn::mgmt::Authorization
-  makeAuthorization(const std::string& verb) override;
+  makeAuthorization(const std::string& verb) final;
 
 private: // Face monitor
   void
@@ -229,7 +227,7 @@ private: // Face monitor
   void
   onFetchActiveFacesFailure(uint32_t code, const std::string& reason);
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   void
   scheduleActiveFaceFetch(const time::seconds& timeToWait);
 
@@ -240,7 +238,7 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   onNotification(const ndn::nfd::FaceEventNotification& notification);
 
 public:
-  static const Name LOCALHOP_TOP_PREFIX;
+  static inline const Name LOCALHOP_TOP_PREFIX{"/localhop/nfd"};
 
 private:
   rib::Rib& m_rib;
@@ -254,7 +252,7 @@ private:
   ndn::ValidatorConfig m_paValidator;
   bool m_isLocalhopEnabled;
 
-  scheduler::ScopedEventId m_activeFaceFetchEvent;
+  ndn::scheduler::ScopedEventId m_activeFaceFetchEvent;
 };
 
 std::ostream&

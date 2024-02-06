@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,9 +25,13 @@
 
 #include "network.hpp"
 
+#include <boost/lexical_cast.hpp>
 #include <boost/utility/value_init.hpp>
+
 #include <algorithm>
 #include <cctype>
+#include <istream>
+#include <ostream>
 
 namespace nfd {
 
@@ -44,7 +48,7 @@ const Network&
 Network::getMaxRangeV4()
 {
   using boost::asio::ip::address_v4;
-  static Network range{address_v4{}, address_v4{0xffffffff}};
+  static const Network range{address_v4{}, address_v4{0xffffffff}};
   return range;
 }
 
@@ -52,14 +56,14 @@ const Network&
 Network::getMaxRangeV6()
 {
   using boost::asio::ip::address_v6;
-  static address_v6::bytes_type maxV6 = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-                                          0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
-  static Network range{address_v6{}, address_v6{maxV6}};
+  static const address_v6::bytes_type maxV6 = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
+  static const Network range{address_v6{}, address_v6{maxV6}};
   return range;
 }
 
 bool
-Network::isValidCidr(const std::string& cidr)
+Network::isValidCidr(std::string_view cidr) noexcept
 {
   auto pos = cidr.find('/');
   if (pos == std::string::npos) {
@@ -92,8 +96,8 @@ operator>>(std::istream& is, Network& network)
   size_t position = networkStr.find('/');
   if (position == std::string::npos) {
     try {
-      network.m_minAddress = ip::address::from_string(networkStr);
-      network.m_maxAddress = ip::address::from_string(networkStr);
+      network.m_minAddress = ip::make_address(networkStr);
+      network.m_maxAddress = ip::make_address(networkStr);
     }
     catch (const boost::system::system_error&) {
       is.setstate(std::ios::failbit);
@@ -102,7 +106,7 @@ operator>>(std::istream& is, Network& network)
   }
   else {
     boost::system::error_code ec;
-    auto address = ip::address::from_string(networkStr.substr(0, position), ec);
+    auto address = ip::make_address(networkStr.substr(0, position), ec);
     if (ec) {
       is.setstate(std::ios::failbit);
       return is;

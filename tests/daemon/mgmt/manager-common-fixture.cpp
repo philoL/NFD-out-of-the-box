@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,39 +25,31 @@
 
 #include "manager-common-fixture.hpp"
 
-#include <ndn-cxx/security/signing-helpers.hpp>
+namespace nfd::tests {
 
-namespace nfd {
-namespace tests {
-
-const Name CommandInterestSignerFixture::DEFAULT_COMMAND_SIGNER_IDENTITY("/CommandInterestSignerFixture-identity");
-
-CommandInterestSignerFixture::CommandInterestSignerFixture()
-  : m_commandInterestSigner(m_keyChain)
+InterestSignerFixture::InterestSignerFixture()
 {
-  BOOST_REQUIRE(this->addIdentity(DEFAULT_COMMAND_SIGNER_IDENTITY));
+  BOOST_REQUIRE(m_keyChain.createIdentity(DEFAULT_COMMAND_SIGNER_IDENTITY));
 }
 
 Interest
-CommandInterestSignerFixture::makeCommandInterest(const Name& name, const Name& identity)
+InterestSignerFixture::makeControlCommandRequest(Name commandName,
+                                                 const ControlParameters& params,
+                                                 ndn::security::SignedInterestFormat format,
+                                                 const Name& identity)
 {
-  return m_commandInterestSigner.makeCommandInterest(name, ndn::security::signingByIdentity(identity));
-}
+  commandName.append(tlv::GenericNameComponent, params.wireEncode());
 
-Interest
-CommandInterestSignerFixture::makeControlCommandRequest(Name commandName,
-                                                        const ControlParameters& params,
-                                                        const Name& identity)
-{
-  commandName.append(params.wireEncode());
-  return this->makeCommandInterest(commandName, identity);
-}
-
-ManagerCommonFixture::ManagerCommonFixture()
-  : m_face(g_io, m_keyChain, {true, true})
-  , m_dispatcher(m_face, m_keyChain, ndn::security::SigningInfo())
-  , m_responses(m_face.sentData)
-{
+  switch (format) {
+    case ndn::security::SignedInterestFormat::V02:
+      return m_signer.makeCommandInterest(commandName, ndn::security::signingByIdentity(identity));
+    case ndn::security::SignedInterestFormat::V03: {
+      Interest interest(commandName);
+      m_signer.makeSignedInterest(interest, ndn::security::signingByIdentity(identity));
+      return interest;
+    }
+  }
+  NDN_CXX_UNREACHABLE;
 }
 
 void
@@ -157,12 +149,11 @@ ManagerCommonFixture::concatenateResponses(size_t startIndex, size_t nResponses)
   }
 
   ndn::EncodingBuffer encoder;
-  size_t valueLength = 0;
+  size_t length = 0;
   for (size_t i = startIndex; i < endIndex ; i ++) {
-    valueLength += encoder.appendByteArray(m_responses[i].getContent().value(),
-                                           m_responses[i].getContent().value_size());
+    length += encoder.appendBytes(m_responses[i].getContent().value_bytes());
   }
-  encoder.prependVarNumber(valueLength);
+  encoder.prependVarNumber(length);
   encoder.prependVarNumber(tlv::Content);
   return encoder.block();
 }
@@ -196,9 +187,9 @@ operator<<(std::ostream& os, ManagerCommonFixture::CheckResponseResult result)
 void
 ManagerFixtureWithAuthenticator::setPrivilege(const std::string& privilege)
 {
-  saveIdentityCertificate(DEFAULT_COMMAND_SIGNER_IDENTITY, "ManagerCommonFixture.ndncert");
+  saveIdentityCert(DEFAULT_COMMAND_SIGNER_IDENTITY, "ManagerCommonFixture.ndncert");
 
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       authorize
@@ -217,5 +208,4 @@ ManagerFixtureWithAuthenticator::setPrivilege(const std::string& privilege)
   cf.parse(config, false, "ManagerCommonFixture.authenticator.conf");
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

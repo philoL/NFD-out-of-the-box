@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,22 +31,19 @@
 
 #include <ndn-cxx/lp/tags.hpp>
 
+#include <boost/logic/tribool.hpp>
+#include <boost/mp11/list.hpp>
 #include <thread>
 
-#include <boost/logic/tribool.hpp>
-
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Mgmt)
 BOOST_AUTO_TEST_SUITE(TestFaceManager)
 
-namespace mpl = boost::mpl;
-
 class FaceManagerUpdateFixture : public FaceManagerCommandFixture
 {
 public:
-  ~FaceManagerUpdateFixture()
+  ~FaceManagerUpdateFixture() override
   {
     destroyFace();
   }
@@ -54,8 +51,8 @@ public:
   void
   createFace(const std::string& uri = "tcp4://127.0.0.1:26363",
              ndn::nfd::FacePersistency persistency = ndn::nfd::FACE_PERSISTENCY_PERSISTENT,
-             optional<time::nanoseconds> baseCongestionMarkingInterval = {},
-             optional<uint64_t> defaultCongestionThreshold = {},
+             std::optional<time::nanoseconds> baseCongestionMarkingInterval = std::nullopt,
+             std::optional<uint64_t> defaultCongestionThreshold = std::nullopt,
              bool enableLocalFields = false,
              bool enableReliability = false,
              boost::logic::tribool enableCongestionMarking = boost::logic::indeterminate)
@@ -110,7 +107,7 @@ public:
         if (isForOnDemandFace) {
           auto face = target.faceTable.get(static_cast<FaceId>(this->faceId));
           // to force creation of on-demand face
-          face->sendInterest(*make_shared<Interest>("/hello/world"), 0);
+          face->sendInterest(*makeInterest("/hello/world"));
         }
       });
 
@@ -203,16 +200,15 @@ BOOST_AUTO_TEST_CASE(FaceDoesNotExist)
   });
 }
 
-using nfd::face::tests::DummyTransportBase;
-using UpdatePersistencyTests = mpl::vector<
-  mpl::pair<DummyTransportBase<true>, CommandSuccess>,
-  mpl::pair<DummyTransportBase<false>, CommandFailure<409>>
+using UpdatePersistencyTests = boost::mp11::mp_list<
+  boost::mp11::mp_list<DummyTransportBase<true>, CommandSuccess>,
+  boost::mp11::mp_list<DummyTransportBase<false>, CommandFailure<409>>
 >;
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(UpdatePersistency, T, UpdatePersistencyTests, FaceManagerUpdateFixture)
 {
-  using TransportType = typename T::first;
-  using ResultType = typename T::second;
+  using TransportType = boost::mp11::mp_first<T>;
+  using ResultType = boost::mp11::mp_second<T>;
 
   auto face = make_shared<face::Face>(make_unique<face::GenericLinkService>(),
                                       make_unique<TransportType>());
@@ -232,6 +228,79 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(UpdatePersistency, T, UpdatePersistencyTests, F
       ControlParameters resp;
       resp.wireDecode(actual.getBody());
       BOOST_CHECK_EQUAL(resp.getFacePersistency(), ndn::nfd::FACE_PERSISTENCY_PERMANENT);
+  });
+}
+
+BOOST_AUTO_TEST_CASE(UpdateMtu)
+{
+  createFace("udp4://127.0.0.1:26363");
+
+  ControlParameters validParams;
+  validParams.setFaceId(faceId);
+  validParams.setMtu(4000);
+
+  ControlParameters mtuTooLow;
+  mtuTooLow.setFaceId(faceId);
+  mtuTooLow.setMtu(63);
+
+  updateFace(validParams, false, [] (const ControlResponse& actual) {
+    BOOST_CHECK_EQUAL(actual.getCode(), 200);
+    BOOST_TEST_MESSAGE(actual.getText());
+
+    if (actual.getBody().hasWire()) {
+      ControlParameters actualParams(actual.getBody());
+
+      BOOST_CHECK(actualParams.hasFaceId());
+      BOOST_REQUIRE(actualParams.hasMtu());
+      // Check for changed MTU
+      BOOST_CHECK_EQUAL(actualParams.getMtu(), 4000);
+    }
+    else {
+      BOOST_ERROR("Valid: Response does not contain ControlParameters");
+    }
+  });
+
+  updateFace(mtuTooLow, false, [] (const ControlResponse& actual) {
+    BOOST_CHECK_EQUAL(actual.getCode(), 409);
+    BOOST_TEST_MESSAGE(actual.getText());
+
+    if (actual.getBody().hasWire()) {
+      ControlParameters actualParams(actual.getBody());
+
+      BOOST_CHECK(!actualParams.hasFaceId());
+      BOOST_REQUIRE(actualParams.hasMtu());
+      // Check for returned invalid parameter
+      BOOST_CHECK_EQUAL(actualParams.getMtu(), 63);
+    }
+    else {
+      BOOST_ERROR("Too low: Response does not contain ControlParameters");
+    }
+  });
+}
+
+BOOST_AUTO_TEST_CASE(UpdateMtuUnsupportedFace)
+{
+  createFace("tcp4://127.0.0.1:26363");
+
+  ControlParameters updateParams;
+  updateParams.setFaceId(faceId);
+  updateParams.setMtu(4000);
+
+  updateFace(updateParams, false, [] (const ControlResponse& actual) {
+    BOOST_CHECK_EQUAL(actual.getCode(), 409);
+    BOOST_TEST_MESSAGE(actual.getText());
+
+    if (actual.getBody().hasWire()) {
+      ControlParameters actualParams(actual.getBody());
+
+      BOOST_CHECK(!actualParams.hasFaceId());
+      BOOST_REQUIRE(actualParams.hasMtu());
+      // Check for returned invalid parameter
+      BOOST_CHECK_EQUAL(actualParams.getMtu(), 4000);
+    }
+    else {
+      BOOST_ERROR("Response does not contain ControlParameters");
+    }
   });
 }
 
@@ -440,18 +509,18 @@ public:
   }
 };
 
-using LocalFieldFaces = mpl::vector<
-  mpl::pair<TcpLocalFieldsEnable, CommandSuccess>,
-  mpl::pair<TcpLocalFieldsDisable, CommandSuccess>,
-  mpl::pair<UdpLocalFieldsEnable, CommandFailure<409>>,
-  mpl::pair<UdpLocalFieldsDisable, CommandSuccess>,
-  mpl::pair<UdpLocalFieldsEnableNoMaskBit, CommandSuccess>
+using LocalFieldFaces = boost::mp11::mp_list<
+  boost::mp11::mp_list<TcpLocalFieldsEnable, CommandSuccess>,
+  boost::mp11::mp_list<TcpLocalFieldsDisable, CommandSuccess>,
+  boost::mp11::mp_list<UdpLocalFieldsEnable, CommandFailure<409>>,
+  boost::mp11::mp_list<UdpLocalFieldsDisable, CommandSuccess>,
+  boost::mp11::mp_list<UdpLocalFieldsEnableNoMaskBit, CommandSuccess>
 >;
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(UpdateLocalFields, T, LocalFieldFaces)
 {
-  using TestType = typename T::first;
-  using ResultType = typename T::second;
+  using TestType = boost::mp11::mp_first<T>;
+  using ResultType = boost::mp11::mp_second<T>;
 
   createFace(TestType::getUri(), TestType::getPersistency(), {}, {},
              TestType::getInitLocalFieldsEnabled());
@@ -664,5 +733,4 @@ BOOST_AUTO_TEST_SUITE_END() // UpdateFace
 BOOST_AUTO_TEST_SUITE_END() // TestFaceManager
 BOOST_AUTO_TEST_SUITE_END() // Mgmt
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

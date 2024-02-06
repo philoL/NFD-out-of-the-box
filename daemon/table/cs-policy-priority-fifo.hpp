@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,10 +28,11 @@
 
 #include "cs-policy.hpp"
 
+#include <ndn-cxx/util/scheduler.hpp>
+
 #include <list>
 
-namespace nfd {
-namespace cs {
+namespace nfd::cs {
 namespace priority_fifo {
 
 using Queue = std::list<Policy::EntryRef>;
@@ -47,10 +48,10 @@ struct EntryInfo
 {
   QueueType queueType;
   Queue::iterator queueIt;
-  scheduler::EventId moveStaleEventId;
+  ndn::scheduler::EventId moveStaleEventId;
 };
 
-/** \brief Priority FIFO replacement policy
+/** \brief Priority First-In-First-Out (FIFO) replacement policy.
  *
  *  This policy maintains a set of cleanup queues to decide the eviction order of CS entries.
  *  The cleanup queues are three doubly linked lists that store EntryRefs.
@@ -62,55 +63,55 @@ struct EntryInfo
  *  Eviction procedure exhausts the first queue before moving onto the next queue,
  *  in the order of unsolicited, stale, and fresh queue.
  */
-class PriorityFifoPolicy : public Policy
+class PriorityFifoPolicy final : public Policy
 {
 public:
   PriorityFifoPolicy();
 
-  ~PriorityFifoPolicy() override;
-
-public:
-  static const std::string POLICY_NAME;
+  ~PriorityFifoPolicy() final;
 
 private:
   void
-  doAfterInsert(EntryRef i) override;
+  doAfterInsert(EntryRef i) final;
 
   void
-  doAfterRefresh(EntryRef i) override;
+  doAfterRefresh(EntryRef i) final;
 
   void
-  doBeforeErase(EntryRef i) override;
+  doBeforeErase(EntryRef i) final;
 
   void
-  doBeforeUse(EntryRef i) override;
+  doBeforeUse(EntryRef i) final;
 
   void
-  evictEntries() override;
+  evictEntries() final;
 
 private:
-  /** \brief evicts one entry
+  /** \brief Evicts one entry.
    *  \pre CS is not empty
    */
   void
   evictOne();
 
-  /** \brief attaches the entry to an appropriate queue
+  /** \brief Attaches the entry to an appropriate queue.
    *  \pre the entry is not in any queue
    */
   void
   attachQueue(EntryRef i);
 
-  /** \brief detaches the entry from its current queue
+  /** \brief Detaches the entry from its current queue.
    *  \post the entry is not in any queue
    */
   void
   detachQueue(EntryRef i);
 
-  /** \brief moves an entry from FIFO queue to STALE queue
+  /** \brief Moves an entry from FIFO queue to STALE queue.
    */
   void
   moveToStaleQueue(EntryRef i);
+
+public:
+  static constexpr std::string_view POLICY_NAME{"priority_fifo"};
 
 private:
   Queue m_queues[QUEUE_MAX];
@@ -121,7 +122,6 @@ private:
 
 using priority_fifo::PriorityFifoPolicy;
 
-} // namespace cs
-} // namespace nfd
+} // namespace nfd::cs
 
 #endif // NFD_DAEMON_TABLE_CS_POLICY_PRIORITY_FIFO_HPP

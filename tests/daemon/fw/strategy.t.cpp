@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,16 +34,14 @@
 #include <boost/range/adaptor/transformed.hpp>
 #include <boost/range/algorithm/copy.hpp>
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::fw;
 
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_FIXTURE_TEST_SUITE(TestStrategy, GlobalIoFixture)
 
-// Strategy registry is tested in table/strategy-choice.t.cpp and strategy-instantiation.t.cpp
+// Strategy registry is tested in strategy-choice.t.cpp and strategy-instantiation.t.cpp
 
 class FaceTableAccessTestStrategy : public DummyStrategy
 {
@@ -94,20 +92,36 @@ BOOST_AUTO_TEST_CASE(FaceTableAccess)
   FaceId id1 = face1->getId();
   FaceId id2 = face2->getId();
 
-  BOOST_CHECK(strategy.getLocalFaces() == std::vector<FaceId>{id2});
+  BOOST_TEST(strategy.getLocalFaces() == std::vector<FaceId>{id2}, boost::test_tools::per_element());
 
   face2->close();
   face1->close();
 
-  BOOST_CHECK((strategy.addedFaces   == std::vector<FaceId>{id1, id2}));
-  BOOST_CHECK((strategy.removedFaces == std::vector<FaceId>{id2, id1}));
+  BOOST_TEST((strategy.addedFaces   == std::vector<FaceId>{id1, id2}), boost::test_tools::per_element());
+  BOOST_TEST((strategy.removedFaces == std::vector<FaceId>{id2, id1}), boost::test_tools::per_element());
 }
 
-// LookupFib is tested in Fw/TestLinkForwarding test suite.
+BOOST_AUTO_TEST_CASE(ParseParameters)
+{
+  BOOST_TEST(Strategy::parseParameters("").empty());
+  BOOST_TEST(Strategy::parseParameters("/").empty());
+  BOOST_CHECK_THROW(Strategy::parseParameters("/foo"), std::invalid_argument);
+  BOOST_CHECK_THROW(Strategy::parseParameters("/foo~"), std::invalid_argument);
+  BOOST_CHECK_THROW(Strategy::parseParameters("/~bar"), std::invalid_argument);
+  BOOST_CHECK_THROW(Strategy::parseParameters("/~"), std::invalid_argument);
+  BOOST_CHECK_THROW(Strategy::parseParameters("/~~"), std::invalid_argument);
+
+  StrategyParameters expected;
+  expected["foo"] = "bar";
+  BOOST_TEST(Strategy::parseParameters("/foo~bar") == expected);
+  BOOST_CHECK_THROW(Strategy::parseParameters("/foo~bar/42"), std::invalid_argument);
+  expected["the-answer"] = "42";
+  BOOST_TEST(Strategy::parseParameters("/foo~bar/the-answer~42") == expected);
+  expected["foo"] = "foo2";
+  BOOST_TEST(Strategy::parseParameters("/foo~bar/the-answer~42/foo~foo2") == expected);
+}
 
 BOOST_AUTO_TEST_SUITE_END() // TestStrategy
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

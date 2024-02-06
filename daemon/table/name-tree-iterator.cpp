@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,29 +27,15 @@
 #include "name-tree.hpp"
 #include "common/logger.hpp"
 
-#include <boost/range/concepts.hpp>
-#include <ndn-cxx/util/concepts.hpp>
-
-namespace nfd {
-namespace name_tree {
-
-NDN_CXX_ASSERT_FORWARD_ITERATOR(Iterator);
-BOOST_CONCEPT_ASSERT((boost::ForwardRangeConcept<Range>));
+namespace nfd::name_tree {
 
 NFD_LOG_INIT(NameTreeIterator);
 
-Iterator::Iterator()
-  : m_entry(nullptr)
-  , m_ref(nullptr)
-  , m_state(0)
-{
-}
+Iterator::Iterator() = default;
 
 Iterator::Iterator(shared_ptr<EnumerationImpl> impl, const Entry* ref)
   : m_impl(std::move(impl))
-  , m_entry(nullptr)
   , m_ref(ref)
-  , m_state(0)
 {
   m_impl->advance(*this);
   NFD_LOG_TRACE("initialized " << *this);
@@ -62,20 +48,6 @@ Iterator::operator++()
   m_impl->advance(*this);
   NFD_LOG_TRACE("advanced " << *this);
   return *this;
-}
-
-Iterator
-Iterator::operator++(int)
-{
-  Iterator copy = *this;
-  this->operator++();
-  return copy;
-}
-
-bool
-Iterator::operator==(const Iterator& other) const
-{
-  return m_entry == other.m_entry;
 }
 
 std::ostream&
@@ -257,5 +229,4 @@ PrefixMatchImpl::advance(Iterator& i)
   i = Iterator();
 }
 
-} // namespace name_tree
-} // namespace nfd
+} // namespace nfd::name_tree

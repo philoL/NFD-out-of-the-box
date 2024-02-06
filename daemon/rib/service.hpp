@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -38,22 +38,21 @@
 #include <ndn-cxx/transport/transport.hpp>
 #include <ndn-cxx/util/scheduler.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
 class Readvertise;
 
 /**
- * \brief initializes and executes NFD-RIB service thread
+ * \brief Initializes and executes the NFD-RIB service thread.
  *
  * Only one instance of this class can be created at any time.
- * After initialization, NFD-RIB instance can be started by running the global io_service.
+ * After initialization, NFD-RIB instance can be started by running the global io_context.
  */
 class Service : noncopyable
 {
 public:
   /**
-   * \brief create NFD-RIB service
+   * \brief Create NFD-RIB service.
    * \param configFile absolute or relative path of configuration file
    * \param keyChain the KeyChain
    * \throw std::logic_error Instance of rib::Service has been already constructed
@@ -62,7 +61,7 @@ public:
   Service(const std::string& configFile, ndn::KeyChain& keyChain);
 
   /**
-   * \brief create NFD-RIB service
+   * \brief Create NFD-RIB service.
    * \param configSection parsed configuration section
    * \param keyChain the KeyChain
    * \note This constructor overload is more appropriate for integrated environments,
@@ -73,13 +72,10 @@ public:
    */
   Service(const ConfigSection& configSection, ndn::KeyChain& keyChain);
 
-  /**
-   * \brief Destructor
-   */
   ~Service();
 
   /**
-   * \brief Get a reference to the only instance of this class
+   * \brief Get a reference to the only instance of this class.
    * \throw std::logic_error No instance has been constructed
    * \throw std::logic_error This function is invoked on a thread other than the RIB thread
    */
@@ -87,7 +83,7 @@ public:
   get();
 
   RibManager&
-  getRibManager()
+  getRibManager() noexcept
   {
     return m_ribManager;
   }
@@ -107,7 +103,7 @@ private:
   applyConfig(const ConfigSection& section, const std::string& filename);
 
 private:
-  static Service* s_instance;
+  static inline Service* s_instance = nullptr;
 
   ndn::KeyChain& m_keyChain;
   ndn::Face m_face;
@@ -121,7 +117,6 @@ private:
   RibManager m_ribManager;
 };
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_SERVICE_HPP

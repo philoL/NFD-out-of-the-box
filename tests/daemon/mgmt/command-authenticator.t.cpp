@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,23 +27,15 @@
 
 #include "manager-common-fixture.hpp"
 
-#include <boost/filesystem.hpp>
+namespace nfd::tests {
 
-namespace nfd {
-namespace tests {
-
-class CommandAuthenticatorFixture : public CommandInterestSignerFixture
+class CommandAuthenticatorFixture : public InterestSignerFixture
 {
 protected:
-  CommandAuthenticatorFixture()
-    : authenticator(CommandAuthenticator::create())
-  {
-  }
-
   void
   makeModules(std::initializer_list<std::string> modules)
   {
-    for (const std::string& module : modules) {
+    for (const auto& module : modules) {
       authorizations.emplace(module, authenticator->makeAuthorization(module, "verb"));
     }
   }
@@ -51,23 +43,23 @@ protected:
   void
   loadConfig(const std::string& config)
   {
-    auto configPath = boost::filesystem::current_path() / "command-authenticator-test.conf";
     ConfigFile cf;
     authenticator->setConfigFile(cf);
-    cf.parse(config, false, configPath.c_str());
+    cf.parse(config, false, "command-authenticator-test.conf");
   }
 
   bool
   authorize(const std::string& module, const Name& identity,
-            const std::function<void(Interest&)>& modifyInterest = nullptr)
+            const std::function<void(Interest&)>& modifyInterest = nullptr,
+            ndn::security::SignedInterestFormat format = ndn::security::SignedInterestFormat::V03)
   {
-    Interest interest = this->makeControlCommandRequest(Name("/prefix/" + module + "/verb"),
-                                                        ControlParameters(), identity);
-    if (modifyInterest != nullptr) {
+    Interest interest = makeControlCommandRequest(Name("/prefix/" + module + "/verb"),
+                                                  {}, format, identity);
+    if (modifyInterest) {
       modifyInterest(interest);
     }
 
-    ndn::mgmt::Authorization authorization = authorizations.at(module);
+    const auto& authorization = authorizations.at(module);
 
     bool isAccepted = false;
     bool isRejected = false;
@@ -92,7 +84,7 @@ protected:
   }
 
 protected:
-  shared_ptr<CommandAuthenticator> authenticator;
+  shared_ptr<CommandAuthenticator> authenticator = CommandAuthenticator::create();
   std::unordered_map<std::string, ndn::mgmt::Authorization> authorizations;
   std::string lastRequester;
   ndn::mgmt::RejectReply lastRejectReply;
@@ -106,12 +98,12 @@ BOOST_AUTO_TEST_CASE(Certs)
   Name id0("/localhost/CommandAuthenticator/0");
   Name id1("/localhost/CommandAuthenticator/1");
   Name id2("/localhost/CommandAuthenticator/2");
-  BOOST_REQUIRE(addIdentity(id0));
-  BOOST_REQUIRE(saveIdentityCertificate(id1, "1.ndncert", true));
-  BOOST_REQUIRE(saveIdentityCertificate(id2, "2.ndncert", true));
+  BOOST_REQUIRE(m_keyChain.createIdentity(id0));
+  BOOST_REQUIRE(saveIdentityCert(id1, "1.ndncert", true));
+  BOOST_REQUIRE(saveIdentityCert(id2, "2.ndncert", true));
 
   makeModules({"module0", "module1", "module2", "module3", "module4", "module5", "module6", "module7"});
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       authorize
@@ -196,11 +188,11 @@ BOOST_AUTO_TEST_CASE(Requester)
 {
   Name id0("/localhost/CommandAuthenticator/0");
   Name id1("/localhost/CommandAuthenticator/1");
-  BOOST_REQUIRE(addIdentity(id0));
-  BOOST_REQUIRE(saveIdentityCertificate(id1, "1.ndncert", true));
+  BOOST_REQUIRE(m_keyChain.createIdentity(id0));
+  BOOST_REQUIRE(saveIdentityCert(id1, "1.ndncert", true));
 
   makeModules({"module0", "module1"});
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       authorize
@@ -239,12 +231,11 @@ class IdentityAuthorizedFixture : public CommandAuthenticatorFixture
 {
 protected:
   IdentityAuthorizedFixture()
-    : id1("/localhost/CommandAuthenticator/1")
   {
-    BOOST_REQUIRE(saveIdentityCertificate(id1, "1.ndncert", true));
+    BOOST_REQUIRE(saveIdentityCert(id1, "1.ndncert", true));
 
     makeModules({"module1"});
-    const std::string& config = R"CONFIG(
+    const std::string config = R"CONFIG(
       authorizations
       {
         authorize
@@ -261,20 +252,26 @@ protected:
   }
 
   bool
-  authorize1(const std::function<void(Interest&)>& modifyInterest)
+  authorize1_V02(const std::function<void(Interest&)>& modifyInterest)
   {
-    return authorize("module1", id1, modifyInterest);
+    return authorize("module1", id1, modifyInterest, ndn::security::SignedInterestFormat::V02);
+  }
+
+  bool
+  authorize1_V03(const std::function<void(Interest&)>& modifyInterest)
+  {
+    return authorize("module1", id1, modifyInterest, ndn::security::SignedInterestFormat::V03);
   }
 
 protected:
-  Name id1;
+  const Name id1{"/localhost/CommandAuthenticator/1"};
 };
 
-BOOST_FIXTURE_TEST_SUITE(Rejects, IdentityAuthorizedFixture)
+BOOST_FIXTURE_TEST_SUITE(Reject, IdentityAuthorizedFixture)
 
-BOOST_AUTO_TEST_CASE(BadKeyLocator_NameTooShort)
+BOOST_AUTO_TEST_CASE(NameTooShort)
 {
-  BOOST_CHECK_EQUAL(authorize1(
+  BOOST_CHECK_EQUAL(authorize1_V02(
     [] (Interest& interest) {
       interest.setName("/prefix");
     }
@@ -282,82 +279,149 @@ BOOST_AUTO_TEST_CASE(BadKeyLocator_NameTooShort)
   BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::SILENT);
 }
 
-BOOST_AUTO_TEST_CASE(BadKeyLocator_BadSigInfo)
+BOOST_AUTO_TEST_CASE(BadSigInfo)
 {
-  BOOST_CHECK_EQUAL(authorize1(
+  BOOST_CHECK_EQUAL(authorize1_V02(
     [] (Interest& interest) {
-      setNameComponent(interest, ndn::signed_interest::POS_SIG_INFO, "not-SignatureInfo");
+      setNameComponent(interest, ndn::command_interest::POS_SIG_INFO, "not-sig-info");
+    }
+  ), false);
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::SILENT);
+
+  BOOST_CHECK_EQUAL(authorize1_V03(
+    [] (Interest& interest) {
+      auto sigInfo = interest.getSignatureInfo().value();
+      sigInfo.addCustomTlv("7F00"_block);
+      interest.setSignatureInfo(sigInfo);
     }
   ), false);
   BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::SILENT);
 }
 
-BOOST_AUTO_TEST_CASE(BadKeyLocator_MissingKeyLocator)
+BOOST_AUTO_TEST_CASE(MissingKeyLocator)
 {
-  BOOST_CHECK_EQUAL(authorize1(
+  BOOST_CHECK_EQUAL(authorize1_V02(
     [] (Interest& interest) {
-      ndn::SignatureInfo sigInfo(tlv::SignatureSha256WithRsa);
-      setNameComponent(interest, ndn::signed_interest::POS_SIG_INFO,
-                       sigInfo.wireEncode().begin(), sigInfo.wireEncode().end());
+      ndn::SignatureInfo sigInfo(interest.getName().at(ndn::command_interest::POS_SIG_INFO).blockFromValue());
+      sigInfo.setKeyLocator(std::nullopt);
+      setNameComponent(interest, ndn::command_interest::POS_SIG_INFO, span(sigInfo.wireEncode()));
+    }
+  ), false);
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::SILENT);
+
+  BOOST_CHECK_EQUAL(authorize1_V03(
+    [] (Interest& interest) {
+      auto sigInfo = interest.getSignatureInfo().value();
+      sigInfo.setKeyLocator(std::nullopt);
+      interest.setSignatureInfo(sigInfo);
     }
   ), false);
   BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::SILENT);
 }
 
-BOOST_AUTO_TEST_CASE(BadKeyLocator_BadKeyLocatorType)
+BOOST_AUTO_TEST_CASE(BadKeyLocatorType)
 {
-  BOOST_CHECK_EQUAL(authorize1(
-    [] (Interest& interest) {
-      ndn::KeyLocator kl;
-      kl.setKeyDigest(ndn::encoding::makeBinaryBlock(tlv::KeyDigest, "\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD", 8));
-      ndn::SignatureInfo sigInfo(tlv::SignatureSha256WithRsa);
+  ndn::KeyLocator kl;
+  kl.setKeyDigest(ndn::makeBinaryBlock(tlv::KeyDigest, {0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD}));
+
+  BOOST_CHECK_EQUAL(authorize1_V02(
+    [&kl] (Interest& interest) {
+      ndn::SignatureInfo sigInfo(tlv::SignatureSha256WithEcdsa, kl);
+      setNameComponent(interest, ndn::command_interest::POS_SIG_INFO, span(sigInfo.wireEncode()));
+    }
+  ), false);
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::SILENT);
+
+  BOOST_CHECK_EQUAL(authorize1_V03(
+    [&kl] (Interest& interest) {
+      auto sigInfo = interest.getSignatureInfo().value();
       sigInfo.setKeyLocator(kl);
-      setNameComponent(interest, ndn::signed_interest::POS_SIG_INFO,
-                       sigInfo.wireEncode().begin(), sigInfo.wireEncode().end());
+      interest.setSignatureInfo(sigInfo);
     }
   ), false);
   BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::SILENT);
+}
+
+BOOST_AUTO_TEST_CASE(BadSigValue)
+{
+  BOOST_CHECK_EQUAL(authorize1_V02(
+    [] (Interest& interest) {
+      setNameComponent(interest, ndn::command_interest::POS_SIG_VALUE, "bad-signature");
+    }
+  ), false);
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
+
+  BOOST_CHECK_EQUAL(authorize1_V03(
+    [] (Interest& interest) {
+      interest.setSignatureValue({0xBA, 0xAD});
+    }
+  ), false);
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
+}
+
+BOOST_AUTO_TEST_CASE(MissingTimestamp)
+{
+  BOOST_CHECK_EQUAL(authorize1_V02(
+    [] (Interest& interest) {
+      setNameComponent(interest, ndn::command_interest::POS_TIMESTAMP, "not-timestamp");
+    }
+  ), false);
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
+
+  BOOST_CHECK_EQUAL(authorize1_V03(
+    [] (Interest& interest) {
+      auto sigInfo = interest.getSignatureInfo().value();
+      sigInfo.setTime(std::nullopt);
+      interest.setSignatureInfo(sigInfo);
+    }
+  ), false);
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
+}
+
+BOOST_AUTO_TEST_CASE(ReplayedTimestamp)
+{
+  name::Component timestampComp;
+  BOOST_CHECK_EQUAL(authorize1_V02(
+    [&timestampComp] (const Interest& interest) {
+      timestampComp = interest.getName().at(ndn::command_interest::POS_TIMESTAMP);
+    }
+  ), true); // accept first command
+  BOOST_CHECK_EQUAL(authorize1_V02(
+    [&timestampComp] (Interest& interest) {
+      setNameComponent(interest, ndn::command_interest::POS_TIMESTAMP, timestampComp);
+    }
+  ), false); // reject second command because timestamp equals first command
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
+
+  time::system_clock::time_point tp;
+  BOOST_CHECK_EQUAL(authorize1_V03(
+    [&tp] (const Interest& interest) {
+      tp = interest.getSignatureInfo().value().getTime().value();
+    }
+  ), true); // accept first command
+  BOOST_CHECK_EQUAL(authorize1_V03(
+    [&tp] (Interest& interest) {
+      auto sigInfo = interest.getSignatureInfo().value();
+      sigInfo.setTime(tp);
+      interest.setSignatureInfo(sigInfo);
+    }
+  ), false); // reject second command because timestamp equals first command
+  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
 }
 
 BOOST_AUTO_TEST_CASE(NotAuthorized)
 {
   Name id0("/localhost/CommandAuthenticator/0");
-  BOOST_REQUIRE(addIdentity(id0));
+  BOOST_REQUIRE(m_keyChain.createIdentity(id0));
 
   BOOST_CHECK_EQUAL(authorize("module1", id0), false);
-  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
-}
-
-BOOST_AUTO_TEST_CASE(BadSig)
-{
-  BOOST_CHECK_EQUAL(authorize1(
-    [] (Interest& interest) {
-      setNameComponent(interest, ndn::command_interest::POS_SIG_VALUE, "bad-signature-bits");
-    }
-  ), false);
-  BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
-}
-
-BOOST_AUTO_TEST_CASE(InvalidTimestamp)
-{
-  name::Component timestampComp;
-  BOOST_CHECK_EQUAL(authorize1(
-    [&timestampComp] (const Interest& interest) {
-      timestampComp = interest.getName().at(ndn::command_interest::POS_TIMESTAMP);
-    }
-  ), true); // accept first command
-  BOOST_CHECK_EQUAL(authorize1(
-    [&timestampComp] (Interest& interest) {
-      setNameComponent(interest, ndn::command_interest::POS_TIMESTAMP, timestampComp);
-    }
-  ), false); // reject second command because timestamp equals first command
   BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
 }
 
 BOOST_FIXTURE_TEST_CASE(MissingAuthorizationsSection, CommandAuthenticatorFixture)
 {
   Name id0("/localhost/CommandAuthenticator/0");
-  BOOST_REQUIRE(addIdentity(id0));
+  BOOST_REQUIRE(m_keyChain.createIdentity(id0));
 
   makeModules({"module42"});
   loadConfig("");
@@ -366,13 +430,13 @@ BOOST_FIXTURE_TEST_CASE(MissingAuthorizationsSection, CommandAuthenticatorFixtur
   BOOST_CHECK(lastRejectReply == ndn::mgmt::RejectReply::STATUS403);
 }
 
-BOOST_AUTO_TEST_SUITE_END() // Rejects
+BOOST_AUTO_TEST_SUITE_END() // Reject
 
 BOOST_AUTO_TEST_SUITE(BadConfig)
 
 BOOST_AUTO_TEST_CASE(EmptyAuthorizationsSection)
 {
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
     }
@@ -383,7 +447,7 @@ BOOST_AUTO_TEST_CASE(EmptyAuthorizationsSection)
 
 BOOST_AUTO_TEST_CASE(UnrecognizedKey)
 {
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       unrecognized_key
@@ -397,7 +461,7 @@ BOOST_AUTO_TEST_CASE(UnrecognizedKey)
 
 BOOST_AUTO_TEST_CASE(CertfileMissing)
 {
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       authorize
@@ -414,7 +478,7 @@ BOOST_AUTO_TEST_CASE(CertfileMissing)
 
 BOOST_AUTO_TEST_CASE(CertUnreadable)
 {
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       authorize
@@ -432,7 +496,7 @@ BOOST_AUTO_TEST_CASE(CertUnreadable)
 
 BOOST_AUTO_TEST_CASE(PrivilegesMissing)
 {
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       authorize
@@ -447,7 +511,7 @@ BOOST_AUTO_TEST_CASE(PrivilegesMissing)
 
 BOOST_AUTO_TEST_CASE(UnregisteredModule)
 {
-  const std::string& config = R"CONFIG(
+  const std::string config = R"CONFIG(
     authorizations
     {
       authorize
@@ -469,5 +533,4 @@ BOOST_AUTO_TEST_SUITE_END() // BadConfig
 BOOST_AUTO_TEST_SUITE_END() // TestCommandAuthenticator
 BOOST_AUTO_TEST_SUITE_END() // Mgmt
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

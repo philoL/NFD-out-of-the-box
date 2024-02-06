@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,12 +24,15 @@
  */
 
 #include "command-definition.hpp"
+#include "status-report.hpp"
 
+#include <ndn-cxx/net/face-uri.hpp>
+#include <ndn-cxx/util/backports.hpp>
 #include <ndn-cxx/util/logger.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <boost/lexical_cast.hpp>
+
+namespace nfd::tools::nfdc {
 
 NDN_LOG_INIT(nfdc.CommandDefinition);
 
@@ -90,11 +93,10 @@ getMetavarFromType(ArgValueType vt)
     case ArgValueType::ROUTE_ORIGIN:
       return "origin";
   }
-  BOOST_ASSERT(false);
-  return "";
+  NDN_CXX_UNREACHABLE;
 }
 
-CommandDefinition::CommandDefinition(const std::string& noun, const std::string& verb)
+CommandDefinition::CommandDefinition(std::string_view noun, std::string_view verb)
   : m_noun(noun)
   , m_verb(verb)
 {
@@ -104,8 +106,8 @@ CommandDefinition::~CommandDefinition() = default;
 
 CommandDefinition&
 CommandDefinition::addArg(const std::string& name, ArgValueType valueType,
-                        Required isRequired, Positional allowPositional,
-                        const std::string& metavar)
+                          Required isRequired, Positional allowPositional,
+                          const std::string& metavar)
 {
   bool isNew = m_args.emplace(name,
     Arg{name, valueType, static_cast<bool>(isRequired),
@@ -152,7 +154,7 @@ CommandDefinition::parse(const std::vector<std::string>& tokens, size_t start) c
         const std::string& valueToken = tokens[++i];
         NDN_LOG_TRACE(arg.name << " has value " << valueToken);
         try {
-          ca[arg.name] = this->parseValue(arg.valueType, valueToken);
+          ca[arg.name] = parseValue(arg.valueType, valueToken);
         }
         catch (const std::exception& e) {
           NDN_LOG_TRACE(valueToken << " cannot be parsed as " << arg.valueType);
@@ -181,7 +183,7 @@ CommandDefinition::parse(const std::vector<std::string>& tokens, size_t start) c
       }
 
       try {
-        ca[arg.name] = this->parseValue(arg.valueType, token);
+        ca[arg.name] = parseValue(arg.valueType, token);
         NDN_LOG_TRACE(token << " is parsed as value for " << arg.name);
         break;
       }
@@ -208,7 +210,7 @@ CommandDefinition::parse(const std::vector<std::string>& tokens, size_t start) c
     ++positionalArgIndex;
   }
 
-  for (const std::string& argName : m_requiredArgs) {
+  for (const auto& argName : m_requiredArgs) {
     if (ca.count(argName) == 0) {
       NDN_THROW(Error(argName + ": required argument is missing"));
     }
@@ -229,6 +231,18 @@ parseBoolean(const std::string& s)
   NDN_THROW(std::invalid_argument("unrecognized boolean value '" + s + "'"));
 }
 
+static ReportFormat
+parseReportFormat(const std::string& s)
+{
+  if (s == "xml") {
+    return ReportFormat::XML;
+  }
+  if (s == "text") {
+    return ReportFormat::TEXT;
+  }
+  NDN_THROW(std::invalid_argument("unrecognized ReportFormat '" + s + "'"));
+}
+
 static FacePersistency
 parseFacePersistency(const std::string& s)
 {
@@ -241,14 +255,13 @@ parseFacePersistency(const std::string& s)
   NDN_THROW(std::invalid_argument("unrecognized FacePersistency '" + s + "'"));
 }
 
-ndn::any
-CommandDefinition::parseValue(ArgValueType valueType, const std::string& token) const
+std::any
+CommandDefinition::parseValue(ArgValueType valueType, const std::string& token)
 {
   switch (valueType) {
     case ArgValueType::NONE:
     case ArgValueType::ANY:
-      BOOST_ASSERT(false);
-      return {};
+      break;
 
     case ArgValueType::BOOLEAN:
       return parseBoolean(token);
@@ -272,14 +285,14 @@ CommandDefinition::parseValue(ArgValueType valueType, const std::string& token) 
       return Name(token);
 
     case ArgValueType::FACE_URI:
-      return FaceUri(token);
+      return ndn::FaceUri(token);
 
     case ArgValueType::FACE_ID_OR_URI:
       try {
         return boost::lexical_cast<uint64_t>(token);
       }
       catch (const boost::bad_lexical_cast&) {
-        return FaceUri(token);
+        return ndn::FaceUri(token);
       }
 
     case ArgValueType::FACE_PERSISTENCY:
@@ -289,10 +302,7 @@ CommandDefinition::parseValue(ArgValueType valueType, const std::string& token) 
       return boost::lexical_cast<RouteOrigin>(token);
   }
 
-  BOOST_ASSERT(false);
-  return {};
+  NDN_CXX_UNREACHABLE;
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

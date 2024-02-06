@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,18 +31,17 @@
 #include "tests/daemon/face/dummy-face.hpp"
 
 #include <boost/logic/tribool.hpp>
-#include <boost/mpl/vector.hpp>
+#include <boost/mp11/list.hpp>
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::fw;
 
 class UnsolicitedDataPolicyFixture : public GlobalIoTimeFixture
 {
 protected:
-  /** \tparam Policy policy type, or void to keep default policy
+  /**
+   * \tparam Policy The policy type, or `void` to keep the default policy.
    */
   template<typename Policy>
   void
@@ -58,8 +57,8 @@ protected:
 
     tribool isFound = indeterminate;
     cs.find(Interest(data.getFullName()),
-            bind([&] { isFound = true; }),
-            bind([&] { isFound = false; }));
+            [&] (auto&&...) { isFound = true; },
+            [&] (auto&&...) { isFound = false; });
 
     this->advanceClocks(1_ms);
     BOOST_REQUIRE(!indeterminate(isFound));
@@ -91,21 +90,21 @@ BOOST_AUTO_TEST_CASE(GetPolicyNames)
   BOOST_CHECK_EQUAL(policyNames.count("admit-all"), 1);
 }
 
-template<typename Policy, bool shouldAdmitLocal, bool shouldAdmitNonLocal>
+template<typename P, bool Local, bool NonLocal>
 struct FaceScopePolicyTest
 {
-  typedef Policy PolicyType;
-  typedef std::integral_constant<bool, shouldAdmitLocal> ShouldAdmitLocal;
-  typedef std::integral_constant<bool, shouldAdmitNonLocal> ShouldAdmitNonLocal;
+  using PolicyType = P;
+  static constexpr bool shouldAdmitLocal = Local;
+  static constexpr bool shouldAdmitNonLocal = NonLocal;
 };
 
-typedef boost::mpl::vector<
+using FaceScopePolicyTests = boost::mp11::mp_list<
   FaceScopePolicyTest<void, false, false>, // default policy
   FaceScopePolicyTest<DropAllUnsolicitedDataPolicy, false, false>,
   FaceScopePolicyTest<AdmitLocalUnsolicitedDataPolicy, true, false>,
   FaceScopePolicyTest<AdmitNetworkUnsolicitedDataPolicy, false, true>,
   FaceScopePolicyTest<AdmitAllUnsolicitedDataPolicy, true, true>
-> FaceScopePolicyTests;
+>;
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(FaceScopePolicy, T, FaceScopePolicyTests)
 {
@@ -115,22 +114,20 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(FaceScopePolicy, T, FaceScopePolicyTests)
                                       ndn::nfd::FACE_SCOPE_LOCAL);
   faceTable.add(face1);
 
-  shared_ptr<Data> data1 = makeData("/unsolicited-from-local");
-  forwarder.onIncomingData(FaceEndpoint(*face1, 0), *data1);
-  BOOST_CHECK_EQUAL(isInCs(*data1), T::ShouldAdmitLocal::value);
+  auto data1 = makeData("/unsolicited-from-local");
+  forwarder.onIncomingData(*data1, FaceEndpoint(*face1));
+  BOOST_CHECK_EQUAL(isInCs(*data1), T::shouldAdmitLocal);
 
   auto face2 = make_shared<DummyFace>("dummy://", "dummy://",
                                       ndn::nfd::FACE_SCOPE_NON_LOCAL);
   faceTable.add(face2);
 
-  shared_ptr<Data> data2 = makeData("/unsolicited-from-non-local");
-  forwarder.onIncomingData(FaceEndpoint(*face2, 0), *data2);
-  BOOST_CHECK_EQUAL(isInCs(*data2), T::ShouldAdmitNonLocal::value);
+  auto data2 = makeData("/unsolicited-from-non-local");
+  forwarder.onIncomingData(*data2, FaceEndpoint(*face2));
+  BOOST_CHECK_EQUAL(isInCs(*data2), T::shouldAdmitNonLocal);
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestUnsolicitedDataPolicy
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

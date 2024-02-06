@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,13 +25,11 @@
 
 #include "cs.hpp"
 #include "common/logger.hpp"
-#include "core/algorithm.hpp"
 
 #include <ndn-cxx/lp/tags.hpp>
 #include <ndn-cxx/util/concepts.hpp>
 
-namespace nfd {
-namespace cs {
+namespace nfd::cs {
 
 NFD_LOG_INIT(ContentStore);
 
@@ -56,7 +54,7 @@ Cs::insert(const Data& data, bool isUnsolicited)
   NFD_LOG_DEBUG("insert " << data.getName());
 
   // recognize CachePolicy
-  shared_ptr<lp::CachePolicyTag> tag = data.getTag<lp::CachePolicyTag>();
+  auto tag = data.getTag<lp::CachePolicyTag>();
   if (tag != nullptr) {
     lp::CachePolicyType policy = tag->get().getPolicy();
     if (policy == lp::CachePolicyType::NO_CACHE) {
@@ -64,10 +62,8 @@ Cs::insert(const Data& data, bool isUnsolicited)
     }
   }
 
-  const_iterator it;
-  bool isNewEntry = false;
-  std::tie(it, isNewEntry) = m_table.emplace(data.shared_from_this(), isUnsolicited);
-  Entry& entry = const_cast<Entry&>(*it);
+  auto [it, isNewEntry] = m_table.emplace(data.shared_from_this(), isUnsolicited);
+  auto& entry = const_cast<Entry&>(*it);
 
   entry.updateFreshUntil();
 
@@ -76,7 +72,6 @@ Cs::insert(const Data& data, bool isUnsolicited)
     if (entry.isUnsolicited() && !isUnsolicited) {
       entry.clearUnsolicited();
     }
-
     m_policy->afterRefresh(it);
   }
   else {
@@ -89,7 +84,7 @@ Cs::findPrefixRange(const Name& prefix) const
 {
   auto first = m_table.lower_bound(prefix);
   auto last = m_table.end();
-  if (prefix.size() > 0) {
+  if (!prefix.empty()) {
     last = m_table.lower_bound(prefix.getSuccessor());
   }
   return {first, last};
@@ -162,7 +157,7 @@ Cs::setPolicyImpl(unique_ptr<Policy> policy)
 }
 
 void
-Cs::enableAdmit(bool shouldAdmit)
+Cs::enableAdmit(bool shouldAdmit) noexcept
 {
   if (m_shouldAdmit == shouldAdmit) {
     return;
@@ -172,7 +167,7 @@ Cs::enableAdmit(bool shouldAdmit)
 }
 
 void
-Cs::enableServe(bool shouldServe)
+Cs::enableServe(bool shouldServe) noexcept
 {
   if (m_shouldServe == shouldServe) {
     return;
@@ -181,5 +176,4 @@ Cs::enableServe(bool shouldServe)
   NFD_LOG_INFO((shouldServe ? "Enabling" : "Disabling") << " Data serving");
 }
 
-} // namespace cs
-} // namespace nfd
+} // namespace nfd::cs

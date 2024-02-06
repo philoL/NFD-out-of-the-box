@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,24 +30,24 @@
 // Strategies that can forward Interest to an ad hoc face even if it's the downstream,
 // sorted alphabetically.
 #include "fw/asf-strategy.hpp"
-#include "fw/best-route-strategy2.hpp"
+#include "fw/best-route-strategy.hpp"
 #include "fw/multicast-strategy.hpp"
 #include "fw/random-strategy.hpp"
 
 #include "tests/daemon/global-io-fixture.hpp"
 #include "topology-tester.hpp"
 
-#include <boost/mpl/vector.hpp>
+#include <boost/mp11/list.hpp>
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
+
+using namespace nfd::fw;
 
 template<typename S>
-class AdHocForwardingFixture : public GlobalIoTimeFixture
+class AdHocTopologyFixture : public GlobalIoTimeFixture
 {
 protected:
-  AdHocForwardingFixture()
+  AdHocTopologyFixture()
   {
     nodeA = topo.addForwarder("A");
     nodeB = topo.addForwarder("B");
@@ -84,17 +84,17 @@ protected:
 };
 
 BOOST_AUTO_TEST_SUITE(Fw)
-BOOST_AUTO_TEST_SUITE(TestAdHocForwarding)
+BOOST_AUTO_TEST_SUITE(TestStrategyAdHocFace)
 
-using Strategies = boost::mpl::vector<
+using Strategies = boost::mp11::mp_list<
   AsfStrategy,
-  BestRouteStrategy2,
+  BestRouteStrategy,
   MulticastStrategy,
   RandomStrategy
 >;
 
-BOOST_FIXTURE_TEST_CASE_TEMPLATE(SingleNexthop, S, Strategies,
-                                 AdHocForwardingFixture<S>)
+BOOST_FIXTURE_TEST_CASE_TEMPLATE(SingleNexthop,
+                                 S, Strategies, AdHocTopologyFixture<S>)
 {
   // +---+---+
   // A   B   C
@@ -115,8 +115,8 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(SingleNexthop, S, Strategies,
   BOOST_CHECK_EQUAL(this->appA->getForwarderFace().getCounters().nOutData, 10);
 }
 
-BOOST_FIXTURE_TEST_CASE_TEMPLATE(SecondNexthop, S, Strategies,
-                                 AdHocForwardingFixture<S>)
+BOOST_FIXTURE_TEST_CASE_TEMPLATE(SecondNexthop,
+                                 S, Strategies, AdHocTopologyFixture<S>)
 {
   // +---+---+
   // A   B   C
@@ -148,9 +148,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(SecondNexthop, S, Strategies,
   BOOST_CHECK_GE(this->appA->getForwarderFace().getCounters().nOutData, 25);
 }
 
-BOOST_AUTO_TEST_SUITE_END() // TestAdHocForwarding
+BOOST_AUTO_TEST_SUITE_END() // TestStrategyAdHocFace
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

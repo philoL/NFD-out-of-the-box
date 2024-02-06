@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,9 +26,11 @@
 #include "tables-config-section.hpp"
 #include "fw/strategy.hpp"
 
+#include <map>
+
 namespace nfd {
 
-const size_t TablesConfigSection::DEFAULT_CS_MAX_PACKETS = 65536;
+constexpr size_t DEFAULT_CS_MAX_PACKETS = 65536;
 
 TablesConfigSection::TablesConfigSection(Forwarder& forwarder)
   : m_forwarder(forwarder)
@@ -39,8 +41,9 @@ TablesConfigSection::TablesConfigSection(Forwarder& forwarder)
 void
 TablesConfigSection::setConfigFile(ConfigFile& configFile)
 {
-  configFile.addSectionHandler("tables",
-                               bind(&TablesConfigSection::processConfig, this, _1, _2));
+  configFile.addSectionHandler("tables", [this] (auto&&... args) {
+    processConfig(std::forward<decltype(args)>(args)...);
+  });
 }
 
 void
@@ -58,7 +61,7 @@ TablesConfigSection::ensureConfigured()
 }
 
 void
-TablesConfigSection::processConfig(const ConfigSection& section, bool isDryRun)
+TablesConfigSection::processConfig(const ConfigSection& section, bool isDryRun, const std::string&)
 {
   size_t nCsMaxPackets = DEFAULT_CS_MAX_PACKETS;
   OptionalConfigSection csMaxPacketsNode = section.get_child_optional("cs_max_packets");
@@ -117,22 +120,19 @@ TablesConfigSection::processConfig(const ConfigSection& section, bool isDryRun)
 void
 TablesConfigSection::processStrategyChoiceSection(const ConfigSection& section, bool isDryRun)
 {
-  using fw::Strategy;
-
   std::map<Name, Name> choices;
   for (const auto& prefixAndStrategy : section) {
     Name prefix(prefixAndStrategy.first);
     Name strategy(prefixAndStrategy.second.get_value<std::string>());
 
-    if (!Strategy::canCreate(strategy)) {
-      NDN_THROW(ConfigFile::Error(
-        "Unknown strategy '" + prefixAndStrategy.second.get_value<std::string>() +
-        "' for prefix '" + prefix.toUri() + "' in section 'strategy_choice'"));
+    if (!fw::Strategy::canCreate(strategy)) {
+      NDN_THROW(ConfigFile::Error("Unknown strategy '" + prefixAndStrategy.second.get_value<std::string>() +
+                                  "' for prefix '" + prefix.toUri() + "' in section 'strategy_choice'"));
     }
 
-    if (!choices.emplace(prefix, strategy).second) {
-      NDN_THROW(ConfigFile::Error(
-        "Duplicate strategy choice for prefix '" + prefix.toUri() + "' in section 'strategy_choice'"));
+    if (!choices.try_emplace(prefix, std::move(strategy)).second) {
+      NDN_THROW(ConfigFile::Error("Duplicate strategy choice for prefix '" + prefix.toUri() +
+                                  "' in section 'strategy_choice'"));
     }
   }
 

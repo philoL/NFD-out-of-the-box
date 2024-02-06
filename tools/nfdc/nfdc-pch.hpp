@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2016,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,20 +23,18 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NFD_TOOLS_NFDC_AVAILABLE_COMMANDS_HPP
-#define NFD_TOOLS_NFDC_AVAILABLE_COMMANDS_HPP
+#ifndef NFD_TOOLS_NFDC_NFDC_PCH_HPP
+#define NFD_TOOLS_NFDC_NFDC_PCH_HPP
 
-#include "command-parser.hpp"
+#include "core/common.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <functional>
+#include <map>
+#include <set>
 
-void
-registerCommands(CommandParser& parser);
+#include <ndn-cxx/mgmt/nfd/controller.hpp>
+#include <ndn-cxx/net/face-uri.hpp>
+#include <ndn-cxx/security/validator-null.hpp>
+#include <ndn-cxx/util/logger.hpp>
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
-
-#endif // NFD_TOOLS_NFDC_AVAILABLE_COMMANDS_HPP
+#endif // NFD_TOOLS_NFDC_NFDC_PCH_HPP

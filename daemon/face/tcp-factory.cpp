@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,8 +25,9 @@
 
 #include "tcp-factory.hpp"
 
-namespace nfd {
-namespace face {
+#include <boost/lexical_cast.hpp>
+
+namespace nfd::face {
 
 namespace ip = boost::asio::ip;
 
@@ -151,31 +152,31 @@ TcpFactory::doCreateFace(const CreateFaceRequest& req,
                          const FaceCreationFailedCallback& onFailure)
 {
   if (req.localUri) {
-    NFD_LOG_TRACE("Cannot create unicast TCP face with LocalUri");
+    NFD_LOG_TRACE("createFace: unsupported LocalUri");
     onFailure(406, "Unicast TCP faces cannot be created with a LocalUri");
     return;
   }
 
   if (req.params.persistency == ndn::nfd::FACE_PERSISTENCY_ON_DEMAND) {
-    NFD_LOG_TRACE("createFace does not support FACE_PERSISTENCY_ON_DEMAND");
+    NFD_LOG_TRACE("createFace: unsupported FacePersistency");
     onFailure(406, "Outgoing TCP faces do not support on-demand persistency");
     return;
   }
 
-  tcp::Endpoint endpoint(ip::address::from_string(req.remoteUri.getHost()),
+  tcp::Endpoint endpoint(ip::make_address(req.remoteUri.getHost()),
                          boost::lexical_cast<uint16_t>(req.remoteUri.getPort()));
 
   // a canonical tcp4/tcp6 FaceUri cannot have a multicast address
   BOOST_ASSERT(!endpoint.address().is_multicast());
 
   if (req.params.wantLocalFields && !endpoint.address().is_loopback()) {
-    NFD_LOG_TRACE("createFace cannot create non-local face with local fields enabled");
+    NFD_LOG_TRACE("createFace: cannot create non-local face with local fields enabled");
     onFailure(406, "Local fields can only be enabled on faces with local scope");
     return;
   }
 
   if (req.params.mtu) {
-    NFD_LOG_TRACE("createFace cannot create a TCP face with an overridden MTU");
+    NFD_LOG_TRACE("createFace: cannot create TCP face with overridden MTU");
     onFailure(406, "TCP faces do not support MTU overrides");
     return;
   }
@@ -200,8 +201,9 @@ TcpFactory::createChannel(const tcp::Endpoint& endpoint)
   if (it != m_channels.end())
     return it->second;
 
-  auto channel = make_shared<TcpChannel>(endpoint, m_wantCongestionMarking,
-                                         bind(&TcpFactory::determineFaceScopeFromAddresses, this, _1, _2));
+  auto channel = make_shared<TcpChannel>(endpoint, m_wantCongestionMarking, [this] (auto&&... args) {
+    return determineFaceScopeFromAddresses(std::forward<decltype(args)>(args)...);
+  });
   m_channels[endpoint] = channel;
   return channel;
 }
@@ -213,8 +215,8 @@ TcpFactory::doGetChannels() const
 }
 
 ndn::nfd::FaceScope
-TcpFactory::determineFaceScopeFromAddresses(const boost::asio::ip::address& localAddress,
-                                            const boost::asio::ip::address& remoteAddress) const
+TcpFactory::determineFaceScopeFromAddresses(const ip::address& localAddress,
+                                            const ip::address& remoteAddress) const
 {
   if (m_local(localAddress) && m_local(remoteAddress)) {
     return ndn::nfd::FACE_SCOPE_LOCAL;
@@ -222,5 +224,4 @@ TcpFactory::determineFaceScopeFromAddresses(const boost::asio::ip::address& loca
   return ndn::nfd::FACE_SCOPE_NON_LOCAL;
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

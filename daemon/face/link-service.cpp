@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,23 +26,14 @@
 #include "link-service.hpp"
 #include "face.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(LinkService);
 
-LinkService::LinkService()
-  : m_face(nullptr)
-  , m_transport(nullptr)
-{
-}
-
-LinkService::~LinkService()
-{
-}
+LinkService::~LinkService() = default;
 
 void
-LinkService::setFaceAndTransport(Face& face, Transport& transport)
+LinkService::setFaceAndTransport(Face& face, Transport& transport) noexcept
 {
   BOOST_ASSERT(m_face == nullptr);
   BOOST_ASSERT(m_transport == nullptr);
@@ -52,36 +43,36 @@ LinkService::setFaceAndTransport(Face& face, Transport& transport)
 }
 
 void
-LinkService::sendInterest(const Interest& interest, const EndpointId& endpoint)
+LinkService::sendInterest(const Interest& interest)
 {
   BOOST_ASSERT(m_transport != nullptr);
   NFD_LOG_FACE_TRACE(__func__);
 
   ++this->nOutInterests;
 
-  doSendInterest(interest, endpoint);
+  doSendInterest(interest);
 }
 
 void
-LinkService::sendData(const Data& data, const EndpointId& endpoint)
+LinkService::sendData(const Data& data)
 {
   BOOST_ASSERT(m_transport != nullptr);
   NFD_LOG_FACE_TRACE(__func__);
 
   ++this->nOutData;
 
-  doSendData(data, endpoint);
+  doSendData(data);
 }
 
 void
-LinkService::sendNack(const ndn::lp::Nack& nack, const EndpointId& endpoint)
+LinkService::sendNack(const ndn::lp::Nack& nack)
 {
   BOOST_ASSERT(m_transport != nullptr);
   NFD_LOG_FACE_TRACE(__func__);
 
   ++this->nOutNacks;
 
-  doSendNack(nack, endpoint);
+  doSendNack(nack);
 }
 
 void
@@ -117,7 +108,7 @@ LinkService::receiveNack(const ndn::lp::Nack& nack, const EndpointId& endpoint)
 void
 LinkService::notifyDroppedInterest(const Interest& interest)
 {
-  ++this->nDroppedInterests;
+  ++this->nInterestsExceededRetx;
   onDroppedInterest(interest);
 }
 
@@ -135,5 +126,4 @@ operator<<(std::ostream& os, const FaceLogHelper<LinkService>& flh)
   return os;
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,8 +32,7 @@
 #include <ndn-cxx/lp/tags.hpp>
 #include <ndn-cxx/mgmt/nfd/fib-entry.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class FibManagerFixture : public ManagerFixtureWithAuthenticator
 {
@@ -80,7 +79,7 @@ public: // for check
   };
 
   /**
-   * @brief check whether the nexthop record is added / removed properly
+   * @brief Check whether the nexthop record is added / removed properly.
    *
    * @param expectedNNextHops use nullopt to skip this check
    * @param faceId use nullopt to skip NextHopRecord checks
@@ -95,9 +94,9 @@ public: // for check
    */
   CheckNextHopResult
   checkNextHop(const Name& prefix,
-               optional<size_t> expectedNNextHops = nullopt,
-               optional<FaceId> faceId = nullopt,
-               optional<uint64_t> expectedCost = nullopt) const
+               std::optional<size_t> expectedNNextHops = std::nullopt,
+               std::optional<FaceId> faceId = std::nullopt,
+               std::optional<uint64_t> expectedCost = std::nullopt) const
   {
     const fib::Entry* entry = m_fib.findExactMatch(prefix);
     if (entry == nullptr) {
@@ -128,7 +127,7 @@ protected:
   FibManager m_manager;
 };
 
-std::ostream&
+static std::ostream&
 operator<<(std::ostream& os, FibManagerFixture::CheckNextHopResult result)
 {
   switch (result) {
@@ -163,7 +162,8 @@ BOOST_AUTO_TEST_CASE(UnknownFaceId)
                     CheckResponseResult::OK);
 
   // double check that the next hop was not added
-  BOOST_CHECK_EQUAL(checkNextHop("/hello", nullopt, nullopt, 101), CheckNextHopResult::NO_FIB_ENTRY);
+  BOOST_CHECK_EQUAL(checkNextHop("/hello", std::nullopt, std::nullopt, 101),
+                    CheckNextHopResult::NO_FIB_ENTRY);
 }
 
 BOOST_AUTO_TEST_CASE(NameTooLong)
@@ -178,7 +178,7 @@ BOOST_AUTO_TEST_CASE(NameTooLong)
   receiveInterest(req);
 
   ControlResponse expected(414, "FIB entry prefix cannot exceed " +
-                                ndn::to_string(Fib::getMaxDepth()) + " components");
+                           std::to_string(Fib::getMaxDepth()) + " components");
   BOOST_CHECK_EQUAL(checkResponse(0, req.getName(), expected), CheckResponseResult::OK);
 
   BOOST_CHECK_EQUAL(checkNextHop(prefix), CheckNextHopResult::NO_FIB_ENTRY);
@@ -388,12 +388,12 @@ BOOST_AUTO_TEST_CASE(RecordNotExist)
   testRemoveNextHop(makeParameters("/hello", face2 + 100));
   BOOST_REQUIRE_EQUAL(m_responses.size(), 1); // face does not exist
   BOOST_CHECK_EQUAL(checkResponse(0, expectedName, expectedResponse), CheckResponseResult::OK);
-  BOOST_CHECK_EQUAL(checkNextHop("/hello", nullopt, face2 + 100), CheckNextHopResult::NO_NEXTHOP);
+  BOOST_CHECK_EQUAL(checkNextHop("/hello", std::nullopt, face2 + 100), CheckNextHopResult::NO_NEXTHOP);
 
   testRemoveNextHop(makeParameters("/hello", face2));
   BOOST_REQUIRE_EQUAL(m_responses.size(), 1); // record does not exist
   BOOST_CHECK_EQUAL(checkResponse(0, expectedName, expectedResponse), CheckResponseResult::OK);
-  BOOST_CHECK_EQUAL(checkNextHop("/hello", nullopt, face2), CheckNextHopResult::NO_NEXTHOP);
+  BOOST_CHECK_EQUAL(checkNextHop("/hello", std::nullopt, face2), CheckNextHopResult::NO_NEXTHOP);
 }
 
 BOOST_AUTO_TEST_SUITE_END() // RemoveNextHop
@@ -421,6 +421,7 @@ BOOST_AUTO_TEST_CASE(FibDataset)
   std::vector<ndn::nfd::FibEntry> receivedRecords, expectedRecords;
   for (size_t idx = 0; idx < nEntries; ++idx) {
     ndn::nfd::FibEntry decodedEntry(content.elements()[idx]);
+    BOOST_TEST_INFO_SCOPE(decodedEntry);
     receivedRecords.push_back(decodedEntry);
     actualPrefixes.erase(decodedEntry.getPrefix());
 
@@ -437,8 +438,7 @@ BOOST_AUTO_TEST_CASE(FibDataset)
   }
 
   BOOST_CHECK_EQUAL(actualPrefixes.size(), 0);
-  BOOST_CHECK_EQUAL_COLLECTIONS(receivedRecords.begin(), receivedRecords.end(),
-                                expectedRecords.begin(), expectedRecords.end());
+  BOOST_TEST(receivedRecords == expectedRecords, boost::test_tools::per_element());
 }
 
 BOOST_AUTO_TEST_SUITE_END() // List
@@ -446,5 +446,4 @@ BOOST_AUTO_TEST_SUITE_END() // List
 BOOST_AUTO_TEST_SUITE_END() // TestFibManager
 BOOST_AUTO_TEST_SUITE_END() // Mgmt
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

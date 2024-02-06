@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,57 +26,56 @@
 #ifndef NFD_TOOLS_NFDC_COMMAND_ARGUMENTS_HPP
 #define NFD_TOOLS_NFDC_COMMAND_ARGUMENTS_HPP
 
-#include "core/common.hpp"
-#include "status-report.hpp"
-
 #include <ndn-cxx/encoding/nfd-constants.hpp>
+
+#include <any>
+#include <map>
+#include <optional>
+#include <string>
+#include <string_view>
 
 #include <boost/logic/tribool.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 using ndn::nfd::FacePersistency;
 using ndn::nfd::RouteOrigin;
 
-/** \brief contains named command arguments
+/** \brief Contains named command arguments.
  */
-class CommandArguments : public std::map<std::string, ndn::any>
+class CommandArguments : public std::map<std::string, std::any, std::less<>>
 {
 public:
   /** \return the argument value, or nullopt if the argument is omitted on command line
    */
   template<typename T>
-  optional<T>
-  getOptional(const std::string& key) const
+  std::optional<T>
+  getOptional(std::string_view key) const
   {
     auto i = find(key);
-    return i == end() ? nullopt : ndn::make_optional(ndn::any_cast<T>(i->second));
+    return i == end() ? std::nullopt : std::make_optional(std::any_cast<T>(i->second));
   }
 
   /** \return the argument value, or a default value if the argument is omitted on command line
    */
   template<typename T>
   T
-  get(const std::string& key, const T& defaultValue = T()) const
+  get(std::string_view key, const T& defaultValue = T()) const
   {
     return getOptional<T>(key).value_or(defaultValue);
   }
 
-  /** \brief get an optional boolean argument as tribool
+  /** \brief Get an optional boolean argument as tribool.
    *  \return the argument value, or boost::logic::indeterminate if the argument is omitted on command line
    */
   boost::logic::tribool
-  getTribool(const std::string& key) const
+  getTribool(std::string_view key) const
   {
     auto value = getOptional<bool>(key);
     return value ? boost::logic::tribool(*value) : boost::logic::indeterminate;
   }
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_COMMAND_ARGUMENTS_HPP

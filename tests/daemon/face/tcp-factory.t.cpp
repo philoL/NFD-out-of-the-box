@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,9 +29,12 @@
 #include "factory-test-common.hpp"
 #include "tests/daemon/limited-io.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include <boost/lexical_cast.hpp>
+
+namespace nfd::tests {
+
+using face::TcpChannel;
+using face::TcpFactory;
 
 class TcpFactoryFixture : public FaceSystemFactoryFixture<TcpFactory>
 {
@@ -39,7 +42,7 @@ protected:
   shared_ptr<TcpChannel>
   createChannel(const std::string& localIp, const std::string& localPort)
   {
-    tcp::Endpoint endpoint(boost::asio::ip::address::from_string(localIp),
+    tcp::Endpoint endpoint(boost::asio::ip::make_address(localIp),
                            boost::lexical_cast<uint16_t>(localPort));
     return factory.createChannel(endpoint);
   }
@@ -175,7 +178,7 @@ BOOST_AUTO_TEST_CASE(ConfigureLocal)
                BOOST_CHECK_EQUAL(face.getScope(), ndn::nfd::FACE_SCOPE_LOCAL);
              });
 
-  limitedIo.run(1, 100_ms);
+  limitedIo.defer(100_ms);
 }
 
 BOOST_AUTO_TEST_CASE(ConfigureNonLocal)
@@ -217,7 +220,7 @@ BOOST_AUTO_TEST_CASE(ConfigureNonLocal)
                BOOST_CHECK_EQUAL(face.getScope(), ndn::nfd::FACE_SCOPE_NON_LOCAL);
              });
 
-  limitedIo.run(1, 100_ms);
+  limitedIo.defer(100_ms);
 }
 
 BOOST_AUTO_TEST_CASE(Omitted)
@@ -267,7 +270,6 @@ BOOST_AUTO_TEST_CASE(BadListen)
   BOOST_CHECK_THROW(parseConfig(CONFIG, false), ConfigFile::Error);
 }
 
-BOOST_AUTO_TEST_CASE_EXPECTED_FAILURES(BadPort, 2) // Bug #4489
 BOOST_AUTO_TEST_CASE(BadPort)
 {
   // not a number
@@ -348,13 +350,16 @@ BOOST_AUTO_TEST_CASE(CreateChannel)
   auto channel1a = createChannel("127.0.0.1", "20070");
   BOOST_CHECK_EQUAL(channel1, channel1a);
   BOOST_CHECK_EQUAL(channel1->getUri().toString(), "tcp4://127.0.0.1:20070");
+  BOOST_CHECK_EQUAL(factory.getChannels().size(), 1);
 
   auto channel2 = createChannel("127.0.0.1", "20071");
   BOOST_CHECK_NE(channel1, channel2);
+  BOOST_CHECK_EQUAL(factory.getChannels().size(), 2);
 
   auto channel3 = createChannel("::1", "20071");
   BOOST_CHECK_NE(channel2, channel3);
   BOOST_CHECK_EQUAL(channel3->getUri().toString(), "tcp6://[::1]:20071");
+  BOOST_CHECK_EQUAL(factory.getChannels().size(), 3);
 }
 
 BOOST_AUTO_TEST_CASE(CreateFace)
@@ -398,10 +403,8 @@ BOOST_AUTO_TEST_CASE(CreateFace)
              {CreateFaceExpectedResult::SUCCESS, 0, ""});
 }
 
-BOOST_AUTO_TEST_CASE(UnsupportedCreateFace)
+BOOST_AUTO_TEST_CASE(CreateFaceInvalidRequest)
 {
-  createChannel("127.0.0.1", "20071");
-
   createFace(factory,
              FaceUri("tcp4://127.0.0.1:20072"),
              FaceUri("tcp4://127.0.0.1:20071"),
@@ -459,16 +462,14 @@ BOOST_FIXTURE_TEST_CASE(CreateFaceTimeout, CreateFaceTimeoutFixture)
 {
   createChannel("0.0.0.0", "20070");
   factory.createFace({FaceUri("tcp4://192.0.2.1:20070"), {}, {}},
-                     bind(&CreateFaceTimeoutFixture::onFaceCreated, this, _1),
-                     bind(&CreateFaceTimeoutFixture::onConnectFailed, this, _2));
+                     std::bind(&CreateFaceTimeoutFixture::onFaceCreated, this, _1),
+                     std::bind(&CreateFaceTimeoutFixture::onConnectFailed, this, _2));
 
-  BOOST_REQUIRE_EQUAL(limitedIo.run(1, 10_s), LimitedIo::EXCEED_OPS);
+  BOOST_CHECK_EQUAL(limitedIo.run(1, 10_s), LimitedIo::EXCEED_OPS);
   BOOST_CHECK(face == nullptr);
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestTcpFactory
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

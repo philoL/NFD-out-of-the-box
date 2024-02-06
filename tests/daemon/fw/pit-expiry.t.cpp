@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,11 +31,7 @@
 
 #include <ndn-cxx/lp/tags.hpp>
 
-namespace nfd {
-namespace fw {
-namespace tests {
-
-using namespace nfd::tests;
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_FIXTURE_TEST_SUITE(TestPitExpiry, GlobalIoTimeFixture)
@@ -62,10 +58,10 @@ public:
   }
 
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override
   {
-    DummyStrategy::afterReceiveInterest(ingress, interest, pitEntry);
+    DummyStrategy::afterReceiveInterest(interest, ingress, pitEntry);
 
     if (afterReceiveInterest_count <= 1) {
       setExpiryTimer(pitEntry, 190_ms);
@@ -73,10 +69,21 @@ public:
   }
 
   void
-  beforeSatisfyInterest(const shared_ptr<pit::Entry>& pitEntry,
-                        const FaceEndpoint& ingress, const Data& data) override
+  afterContentStoreHit(const Data& data, const FaceEndpoint& ingress,
+                       const shared_ptr<pit::Entry>& pitEntry) override
   {
-    DummyStrategy::beforeSatisfyInterest(pitEntry, ingress, data);
+    if (afterContentStoreHit_count == 0) {
+      setExpiryTimer(pitEntry, 190_ms);
+    }
+
+    DummyStrategy::afterContentStoreHit(data, ingress, pitEntry);
+  }
+
+  void
+  beforeSatisfyInterest(const Data& data, const FaceEndpoint& ingress,
+                        const shared_ptr<pit::Entry>& pitEntry) override
+  {
+    DummyStrategy::beforeSatisfyInterest(data, ingress, pitEntry);
 
     if (beforeSatisfyInterest_count <= 2) {
       setExpiryTimer(pitEntry, 190_ms);
@@ -84,19 +91,8 @@ public:
   }
 
   void
-  afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntry,
-                       const FaceEndpoint& ingress, const Data& data) override
-  {
-    if (afterContentStoreHit_count == 0) {
-      setExpiryTimer(pitEntry, 190_ms);
-    }
-
-    DummyStrategy::afterContentStoreHit(pitEntry, ingress, data);
-  }
-
-  void
-  afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
-                   const FaceEndpoint& ingress, const Data& data) override
+  afterReceiveData(const Data& data, const FaceEndpoint& ingress,
+                   const shared_ptr<pit::Entry>& pitEntry) override
   {
     ++afterReceiveData_count;
 
@@ -104,14 +100,14 @@ public:
       setExpiryTimer(pitEntry, 290_ms);
     }
 
-    this->sendDataToAll(pitEntry, ingress, data);
+    this->sendDataToAll(data, pitEntry, ingress.face);
   }
 
   void
-  afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
+  afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                    const shared_ptr<pit::Entry>& pitEntry) override
   {
-    DummyStrategy::afterReceiveNack(ingress, nack, pitEntry);
+    DummyStrategy::afterReceiveNack(nack, ingress, pitEntry);
 
     if (afterReceiveNack_count <= 1) {
       setExpiryTimer(pitEntry, 50_ms);
@@ -136,8 +132,8 @@ BOOST_AUTO_TEST_CASE(UnsatisfiedInterest)
   interest1->setInterestLifetime(90_ms);
   interest2->setInterestLifetime(90_ms);
 
-  face1->receiveInterest(*interest1, 0);
-  face2->receiveInterest(*interest2, 0);
+  face1->receiveInterest(*interest1);
+  face2->receiveInterest(*interest2);
   BOOST_CHECK_EQUAL(pit.size(), 2);
 
   this->advanceClocks(100_ms);
@@ -160,10 +156,10 @@ BOOST_AUTO_TEST_CASE(SatisfiedInterest)
   interest->setInterestLifetime(90_ms);
   auto data = makeData("/A/0");
 
-  face1->receiveInterest(*interest, 0);
+  face1->receiveInterest(*interest);
 
   this->advanceClocks(30_ms);
-  face2->receiveData(*data, 0);
+  face2->receiveData(*data);
 
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
@@ -179,7 +175,7 @@ BOOST_AUTO_TEST_CASE(CsHit)
   faceTable.add(face1);
   faceTable.add(face2);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -195,14 +191,14 @@ BOOST_AUTO_TEST_CASE(CsHit)
   Cs& cs = forwarder.getCs();
   cs.insert(*data);
 
-  face1->receiveInterest(*interest, 0);
+  face1->receiveInterest(*interest);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 1);
 
   this->advanceClocks(190_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
 
-  face1->receiveInterest(*interest, 0);
+  face1->receiveInterest(*interest);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
 }
@@ -219,7 +215,7 @@ BOOST_AUTO_TEST_CASE(ReceiveNack)
   faceTable.add(face2);
   faceTable.add(face3);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -228,13 +224,13 @@ BOOST_AUTO_TEST_CASE(ReceiveNack)
   auto interest = makeInterest("/A/0", false, 90_ms, 562);
   lp::Nack nack = makeNack(*interest, lp::NackReason::CONGESTION);
 
-  face1->receiveInterest(*interest, 0);
+  face1->receiveInterest(*interest);
   auto entry = pit.find(*interest);
   entry->insertOrUpdateOutRecord(*face2, *interest);
   entry->insertOrUpdateOutRecord(*face3, *interest);
 
   this->advanceClocks(10_ms);
-  face2->receiveNack(nack, 0);
+  face2->receiveNack(nack);
 
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 1);
@@ -251,7 +247,7 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveInterest)
   auto face = make_shared<DummyFace>();
   faceTable.add(face);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -259,7 +255,7 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveInterest)
 
   auto interest = makeInterest("/A/0", false, 90_ms);
 
-  face->receiveInterest(*interest, 0);
+  face->receiveInterest(*interest);
   BOOST_CHECK_EQUAL(pit.size(), 1);
 
   this->advanceClocks(100_ms);
@@ -281,8 +277,8 @@ BOOST_AUTO_TEST_CASE(ResetTimerBeforeSatisfyInterest)
   faceTable.add(face2);
   faceTable.add(face3);
 
-  Name strategyA("/strategyA/%FD%01");
-  Name strategyB("/strategyB/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
+  auto strategyB = Name("/strategyB").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   PitExpiryTestStrategy::registerAs(strategyB);
   auto& sA = choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
@@ -293,30 +289,30 @@ BOOST_AUTO_TEST_CASE(ResetTimerBeforeSatisfyInterest)
   auto interest2 = makeInterest("/A/0", false, 90_ms);
   auto data = makeData("/A/0");
 
-  face1->receiveInterest(*interest1, 0);
-  face2->receiveInterest(*interest2, 0);
+  face1->receiveInterest(*interest1);
+  face2->receiveInterest(*interest2);
   BOOST_CHECK_EQUAL(pit.size(), 2);
 
   // beforeSatisfyInterest: the first Data prolongs PIT expiry timer by 190 ms
   this->advanceClocks(30_ms);
-  face3->receiveData(*data, 0);
+  face3->receiveData(*data);
   this->advanceClocks(189_ms);
   BOOST_CHECK_EQUAL(pit.size(), 2);
   this->advanceClocks(2_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
 
-  face1->receiveInterest(*interest1, 0);
-  face2->receiveInterest(*interest2, 0);
+  face1->receiveInterest(*interest1);
+  face2->receiveInterest(*interest2);
 
   // beforeSatisfyInterest: the second Data prolongs PIT expiry timer
   // and the third one sets the timer to now
   this->advanceClocks(30_ms);
-  face3->receiveData(*data, 0);
+  face3->receiveData(*data);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 2);
 
   this->advanceClocks(30_ms);
-  face3->receiveData(*data, 0);
+  face3->receiveData(*data);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
 
@@ -336,7 +332,7 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveData)
   faceTable.add(face1);
   faceTable.add(face2);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   auto& sA = choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -345,27 +341,27 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveData)
   auto interest = makeInterest("/A/0", false, 90_ms);
   auto data = makeData("/A/0");
 
-  face1->receiveInterest(*interest, 0);
+  face1->receiveInterest(*interest);
 
   // afterReceiveData: the first Data prolongs PIT expiry timer by 290 ms
   this->advanceClocks(30_ms);
-  face2->receiveData(*data, 0);
+  face2->receiveData(*data);
   this->advanceClocks(289_ms);
   BOOST_CHECK_EQUAL(pit.size(), 1);
   this->advanceClocks(2_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
 
-  face1->receiveInterest(*interest, 0);
+  face1->receiveInterest(*interest);
 
   // afterReceiveData: the second Data prolongs PIT expiry timer
   // and the third one sets the timer to now
   this->advanceClocks(30_ms);
-  face2->receiveData(*data, 0);
+  face2->receiveData(*data);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 1);
 
   this->advanceClocks(30_ms);
-  face2->receiveData(*data, 0);
+  face2->receiveData(*data);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
 
@@ -385,7 +381,7 @@ BOOST_AUTO_TEST_CASE(ReceiveNackAfterResetTimer)
   faceTable.add(face2);
   faceTable.add(face3);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -394,20 +390,20 @@ BOOST_AUTO_TEST_CASE(ReceiveNackAfterResetTimer)
   auto interest = makeInterest("/A/0", false, 90_ms, 562);
   lp::Nack nack = makeNack(*interest, lp::NackReason::CONGESTION);
 
-  face1->receiveInterest(*interest, 0);
+  face1->receiveInterest(*interest);
   auto entry = pit.find(*interest);
   entry->insertOrUpdateOutRecord(*face2, *interest);
   entry->insertOrUpdateOutRecord(*face3, *interest);
 
   //pitEntry is not erased after receiving the first Nack
   this->advanceClocks(10_ms);
-  face2->receiveNack(nack, 0);
+  face2->receiveNack(nack);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 1);
 
   //pitEntry is erased after receiving the second Nack
   this->advanceClocks(10_ms);
-  face3->receiveNack(nack, 0);
+  face3->receiveNack(nack);
   this->advanceClocks(1_ms);
   BOOST_CHECK_EQUAL(pit.size(), 0);
 }
@@ -415,6 +411,4 @@ BOOST_AUTO_TEST_CASE(ReceiveNackAfterResetTimer)
 BOOST_AUTO_TEST_SUITE_END() // TestPitExpiry
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

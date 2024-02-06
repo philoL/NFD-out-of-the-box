@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,53 +29,54 @@
 #include "module.hpp"
 #include "command-parser.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/strategy-choice.hpp>
+
+namespace nfd::tools::nfdc {
 
 using ndn::nfd::StrategyChoice;
 
-/** \brief provides access to NFD Strategy Choice management
- *  \sa https://redmine.named-data.net/projects/nfd/wiki/StrategyChoice
+/**
+ * \brief Provides access to NFD Strategy Choice management.
+ * \sa https://redmine.named-data.net/projects/nfd/wiki/StrategyChoice
  */
-class StrategyChoiceModule : public Module, noncopyable
+class StrategyChoiceModule : public Module, boost::noncopyable
 {
 public:
-  /** \brief register 'strategy list', 'strategy show', 'strategy set', 'strategy unset' commands
+  /** \brief Register 'strategy list', 'strategy show', 'strategy set', 'strategy unset' commands.
    */
   static void
   registerCommands(CommandParser& parser);
 
-  /** \brief the 'strategy list' command
+  /** \brief The 'strategy list' command.
    */
   static void
   list(ExecuteContext& ctx);
 
-  /** \brief the 'strategy show' command
+  /** \brief The 'strategy show' command.
    */
   static void
   show(ExecuteContext& ctx);
 
-  /** \brief the 'strategy set' command
+  /** \brief The 'strategy set' command.
    */
   static void
   set(ExecuteContext& ctx);
 
-  /** \brief the 'strategy unset' command
+  /** \brief The 'strategy unset' command.
    */
   static void
   unset(ExecuteContext& ctx);
 
   void
-  fetchStatus(Controller& controller,
+  fetchStatus(ndn::nfd::Controller& controller,
               const std::function<void()>& onSuccess,
-              const Controller::DatasetFailCallback& onFailure,
+              const ndn::nfd::DatasetFailureCallback& onFailure,
               const CommandOptions& options) override;
 
   void
   formatStatusXml(std::ostream& os) const override;
 
-  /** \brief format a single status item as XML
+  /** \brief Format a single status item as XML.
    *  \param os output stream
    *  \param item status item
    */
@@ -85,7 +86,7 @@ public:
   void
   formatStatusText(std::ostream& os) const override;
 
-  /** \brief format a single status item as text
+  /** \brief Format a single status item as text.
    *  \param os output stream
    *  \param item status item
    *  \param wantMultiLine use multi-line style
@@ -97,8 +98,6 @@ private:
   std::vector<StrategyChoice> m_status;
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_STRATEGY_CHOICE_MODULE_HPP

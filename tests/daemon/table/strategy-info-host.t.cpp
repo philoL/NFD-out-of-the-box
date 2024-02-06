@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,8 +28,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 using fw::StrategyInfo;
 
@@ -50,8 +49,7 @@ public:
     ++g_DummyStrategyInfo_count;
   }
 
-  virtual
-  ~DummyStrategyInfo()
+  ~DummyStrategyInfo() override
   {
     --g_DummyStrategyInfo_count;
   }
@@ -85,19 +83,16 @@ BOOST_AUTO_TEST_CASE(Basic)
 {
   StrategyInfoHost host;
   g_DummyStrategyInfo_count = 0;
-  bool isNew = false;
 
-  DummyStrategyInfo* info = nullptr;
-  std::tie(info, isNew) = host.insertStrategyInfo<DummyStrategyInfo>(3503);
+  auto [info, isNew] = host.insertStrategyInfo<DummyStrategyInfo>(3503);
   BOOST_CHECK_EQUAL(isNew, true);
   BOOST_CHECK_EQUAL(g_DummyStrategyInfo_count, 1);
   BOOST_REQUIRE(info != nullptr);
   BOOST_CHECK_EQUAL(info->m_id, 3503);
   BOOST_CHECK_EQUAL(host.getStrategyInfo<DummyStrategyInfo>(), info);
 
-  DummyStrategyInfo* info2 = nullptr;
-  std::tie(info2, isNew) = host.insertStrategyInfo<DummyStrategyInfo>(1032);
-  BOOST_CHECK_EQUAL(isNew, false);
+  auto [info2, isNew2] = host.insertStrategyInfo<DummyStrategyInfo>(1032);
+  BOOST_CHECK_EQUAL(isNew2, false);
   BOOST_CHECK_EQUAL(g_DummyStrategyInfo_count, 1);
   BOOST_CHECK_EQUAL(info2, info);
   BOOST_CHECK_EQUAL(info->m_id, 3503);
@@ -135,5 +130,4 @@ BOOST_AUTO_TEST_CASE(Types)
 BOOST_AUTO_TEST_SUITE_END() // TestStrategyInfoHost
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

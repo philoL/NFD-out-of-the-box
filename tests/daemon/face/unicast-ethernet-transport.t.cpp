@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,16 +23,18 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "transport-test-common.hpp"
+#include "ethernet-transport-fixture.hpp"
 
-#include "ethernet-fixture.hpp"
+#include "common/global.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include "tests/daemon/face/transport-test-common.hpp"
+
+namespace nfd::tests {
+
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
-BOOST_FIXTURE_TEST_SUITE(TestUnicastEthernetTransport, EthernetFixture)
+BOOST_FIXTURE_TEST_SUITE(TestUnicastEthernetTransport, EthernetTransportFixture)
 
 BOOST_AUTO_TEST_CASE(StaticProperties)
 {
@@ -58,23 +60,70 @@ BOOST_AUTO_TEST_CASE(PersistencyChange)
   BOOST_CHECK_EQUAL(transport->canChangePersistencyTo(ndn::nfd::FACE_PERSISTENCY_PERMANENT), true);
 }
 
+BOOST_AUTO_TEST_CASE(NetifStateChange)
+{
+  SKIP_IF_NO_RUNNING_ETHERNET_NETIF();
+  auto netif = getRunningNetif();
+  initializeUnicast(netif);
+
+  // Simulate setting interface administratively down
+  getScheduler().schedule(10_ms, [netif] { netif->setState(ndn::net::InterfaceState::DOWN); });
+  transport->afterStateChange.connectSingleShot([this] (auto oldState, auto newState) {
+    BOOST_CHECK_EQUAL(oldState, TransportState::UP);
+    BOOST_CHECK_EQUAL(newState, TransportState::DOWN);
+    this->limitedIo.afterOp();
+  });
+  BOOST_CHECK_EQUAL(limitedIo.run(1, 1_s), LimitedIo::EXCEED_OPS);
+  BOOST_CHECK_EQUAL(transport->getState(), TransportState::DOWN);
+
+  // Simulate setting interface administratively up
+  getScheduler().schedule(10_ms, [netif] { netif->setState(ndn::net::InterfaceState::NO_CARRIER); });
+  getScheduler().schedule(80_ms, [netif] { netif->setState(ndn::net::InterfaceState::RUNNING); });
+  transport->afterStateChange.connectSingleShot([this] (auto oldState, auto newState) {
+    BOOST_CHECK_EQUAL(oldState, TransportState::DOWN);
+    BOOST_CHECK_EQUAL(newState, TransportState::UP);
+    this->limitedIo.afterOp();
+  });
+  BOOST_CHECK_EQUAL(limitedIo.run(1, 1_s), LimitedIo::EXCEED_OPS);
+  BOOST_CHECK_EQUAL(transport->getState(), TransportState::UP);
+}
+
+BOOST_AUTO_TEST_CASE(NetifMtuChange)
+{
+  SKIP_IF_ETHERNET_NETIF_COUNT_LT(1);
+  initializeUnicast();
+  BOOST_CHECK_EQUAL(transport->getMtu(), defaultNetif->getMtu());
+
+  // netif changes MTU from initial value to 1024
+  defaultNetif->setMtu(1024);
+  BOOST_CHECK_EQUAL(transport->getMtu(), 1024);
+
+  // netif changes MTU from 1024 to 4000
+  defaultNetif->setMtu(4000);
+  BOOST_CHECK_EQUAL(transport->getMtu(), 4000);
+
+  // netif changes MTU from 4000 to 0
+  defaultNetif->setMtu(0);
+  BOOST_CHECK_EQUAL(transport->getMtu(), 0);
+}
+
 BOOST_AUTO_TEST_CASE(ExpirationTime)
 {
   SKIP_IF_ETHERNET_NETIF_COUNT_LT(1);
-  initializeUnicast(ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
-  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::TimePoint::max());
+  initializeUnicast(nullptr, ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
+  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::time_point::max());
 
   transport->setPersistency(ndn::nfd::FACE_PERSISTENCY_PERSISTENT);
-  BOOST_CHECK_EQUAL(transport->getExpirationTime(), time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(transport->getExpirationTime(), time::steady_clock::time_point::max());
 
   transport->setPersistency(ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
-  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::TimePoint::max());
+  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::time_point::max());
 }
 
 BOOST_AUTO_TEST_CASE(Close)
 {
-  SKIP_IF_ETHERNET_NETIF_COUNT_LT(1);
-  initializeUnicast();
+  SKIP_IF_NO_RUNNING_ETHERNET_NETIF();
+  initializeUnicast(getRunningNetif());
 
   transport->afterStateChange.connectSingleShot([] (auto oldState, auto newState) {
     BOOST_CHECK_EQUAL(oldState, TransportState::UP);
@@ -94,8 +143,8 @@ BOOST_AUTO_TEST_CASE(Close)
 
 BOOST_AUTO_TEST_CASE(IdleClose)
 {
-  SKIP_IF_ETHERNET_NETIF_COUNT_LT(1);
-  initializeUnicast(ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
+  SKIP_IF_NO_RUNNING_ETHERNET_NETIF();
+  initializeUnicast(getRunningNetif(), ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
 
   int nStateChanges = 0;
   transport->afterStateChange.connect(
@@ -131,6 +180,4 @@ BOOST_AUTO_TEST_CASE(SendQueueLength)
 BOOST_AUTO_TEST_SUITE_END() // TestUnicastEthernetTransport
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

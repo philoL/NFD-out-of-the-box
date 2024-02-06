@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,15 +26,10 @@
 #include "asf-measurements.hpp"
 #include "common/global.hpp"
 
-namespace nfd {
-namespace fw {
-namespace asf {
-
-const time::nanoseconds FaceInfo::RTT_NO_MEASUREMENT{-1};
-const time::nanoseconds FaceInfo::RTT_TIMEOUT{-2};
+namespace nfd::fw::asf {
 
 time::nanoseconds
-FaceInfo::scheduleTimeout(const Name& interestName, scheduler::EventCallback cb)
+FaceInfo::scheduleTimeout(const Name& interestName, ndn::scheduler::EventCallback cb)
 {
   BOOST_ASSERT(!m_timeoutEvent);
   m_lastInterestName = interestName;
@@ -63,11 +58,9 @@ NamespaceInfo::getFaceInfo(FaceId faceId)
 FaceInfo&
 NamespaceInfo::getOrCreateFaceInfo(FaceId faceId)
 {
-  auto ret = m_fiMap.emplace(std::piecewise_construct,
-                             std::forward_as_tuple(faceId),
-                             std::forward_as_tuple(m_rttEstimatorOpts));
-  auto& faceInfo = ret.first->second;
-  if (ret.second) {
+  auto [it, isNew] = m_fiMap.try_emplace(faceId, m_rttEstimatorOpts);
+  auto& faceInfo = it->second;
+  if (isNew) {
     extendFaceInfoLifetime(faceInfo, faceId);
   }
   return faceInfo;
@@ -83,8 +76,6 @@ NamespaceInfo::extendFaceInfoLifetime(FaceInfo& info, FaceId faceId)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr time::microseconds AsfMeasurements::MEASUREMENTS_LIFETIME;
-
 AsfMeasurements::AsfMeasurements(MeasurementsAccessor& measurements)
   : m_measurements(measurements)
   , m_rttEstimatorOpts(make_shared<ndn::util::RttEstimator::Options>())
@@ -92,22 +83,21 @@ AsfMeasurements::AsfMeasurements(MeasurementsAccessor& measurements)
 }
 
 FaceInfo*
-AsfMeasurements::getFaceInfo(const fib::Entry& fibEntry, const Interest& interest, FaceId faceId)
+AsfMeasurements::getFaceInfo(const fib::Entry& fibEntry, const Name& interestName, FaceId faceId)
 {
-  return getOrCreateNamespaceInfo(fibEntry, interest).getFaceInfo(faceId);
+  return getOrCreateNamespaceInfo(fibEntry, interestName).getFaceInfo(faceId);
 }
 
 FaceInfo&
-AsfMeasurements::getOrCreateFaceInfo(const fib::Entry& fibEntry, const Interest& interest,
-                                     FaceId faceId)
+AsfMeasurements::getOrCreateFaceInfo(const fib::Entry& fibEntry, const Name& interestName, FaceId faceId)
 {
-  return getOrCreateNamespaceInfo(fibEntry, interest).getOrCreateFaceInfo(faceId);
+  return getOrCreateNamespaceInfo(fibEntry, interestName).getOrCreateFaceInfo(faceId);
 }
 
 NamespaceInfo*
 AsfMeasurements::getNamespaceInfo(const Name& prefix)
 {
-  measurements::Entry* me = m_measurements.findLongestPrefixMatch(prefix);
+  auto* me = m_measurements.findLongestPrefixMatch(prefix);
   if (me == nullptr) {
     return nullptr;
   }
@@ -121,15 +111,16 @@ AsfMeasurements::getNamespaceInfo(const Name& prefix)
 }
 
 NamespaceInfo&
-AsfMeasurements::getOrCreateNamespaceInfo(const fib::Entry& fibEntry, const Interest& interest)
+AsfMeasurements::getOrCreateNamespaceInfo(const fib::Entry& fibEntry, const Name& prefix)
 {
-  measurements::Entry* me = m_measurements.get(fibEntry);
+  auto* me = m_measurements.get(fibEntry);
 
   // If the FIB entry is not under the strategy's namespace, find a part of the prefix
   // that falls under the strategy's namespace
   for (size_t prefixLen = fibEntry.getPrefix().size() + 1;
-       me == nullptr && prefixLen <= interest.getName().size(); ++prefixLen) {
-    me = m_measurements.get(interest.getName().getPrefix(prefixLen));
+       me == nullptr && prefixLen <= prefix.size();
+       ++prefixLen) {
+    me = m_measurements.get(prefix.getPrefix(prefixLen));
   }
 
   // Either the FIB entry or the Interest's name must be under this strategy's namespace
@@ -149,6 +140,4 @@ AsfMeasurements::extendLifetime(measurements::Entry& me)
   m_measurements.extendLifetime(me, MEASUREMENTS_LIFETIME);
 }
 
-} // namespace asf
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw::asf

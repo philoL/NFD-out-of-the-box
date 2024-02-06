@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,10 +31,9 @@
 
 #include <ndn-cxx/security/key-chain.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-/** \brief a policy to readvertise routes registered by local applications into remote gateway
+/** \brief A policy to readvertise routes registered by local applications into remote gateway.
  */
 class HostToGatewayReadvertisePolicy : public ReadvertisePolicy
 {
@@ -43,7 +42,7 @@ public:
                                  const ConfigSection& section);
 
 public:
-  optional<ReadvertiseAction>
+  std::optional<ReadvertiseAction>
   handleNewRoute(const RibRouteRef& ribRoute) const override;
 
   time::milliseconds
@@ -54,7 +53,6 @@ private:
   time::seconds m_refreshInterval;
 };
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_READVERTISE_HOST_TO_GATEWAY_READVERTISE_POLICY_HPP

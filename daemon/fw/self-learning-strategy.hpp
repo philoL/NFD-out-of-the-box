@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,22 +27,27 @@
 #define NFD_DAEMON_FW_SELF_LEARNING_STRATEGY_HPP
 
 #include "fw/strategy.hpp"
+#include "process-nack-traits.hpp"
+#include "retx-suppression-exponential.hpp"
 
-#include <ndn-cxx/lp/prefix-announcement-header.hpp>
+#include <ndn-cxx/prefix-announcement.hpp>
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
-/** \brief Self-learning strategy
+/**
+ * \brief Self-learning forwarding strategy.
  *
- *  This strategy first broadcasts Interest to learn a single path towards data,
- *  then unicasts subsequent Interests along the learned path
+ *  This strategy forwards Interests in round-robin manner according the ranking of next hops,
+ *  with Interest suppression and retransmission mechanisms added.
+ *  In addition, when no next hop is found in FIB, the Interest will be broadcast to non-local faces.
  *
- *  \see https://redmine.named-data.net/attachments/864/Self-learning-strategy-v1.pdf
+ *  On receiving Data for broadcast Interest, a route will be added to FIB according to the Prefix Announcement
+ *  attached to Data. In addition, unicast face will be created when receiving data from a multicast face.
  *
- *  \note This strategy is not EndpointId-aware
+ *  \see https://github.com/philoL/NDN-Self-Learning/blob/master/self-learning-v2.pdf
  */
 class SelfLearningStrategy : public Strategy
+                           , public ProcessNackTraits<SelfLearningStrategy>
 {
 public:
   explicit
@@ -52,7 +57,7 @@ public:
   getStrategyName();
 
   /// StrategyInfo on pit::InRecord
-  class InRecordInfo : public StrategyInfo
+  class InRecordInfo final : public StrategyInfo
   {
   public:
     static constexpr int
@@ -66,7 +71,7 @@ public:
   };
 
   /// StrategyInfo on pit::OutRecord
-  class OutRecordInfo : public StrategyInfo
+  class OutRecordInfo final : public StrategyInfo
   {
   public:
     static constexpr int
@@ -81,20 +86,23 @@ public:
 
 public: // triggers
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
-                   const FaceEndpoint& ingress, const Data& data) override;
+  afterContentStoreHit(const Data& data, const FaceEndpoint& ingress,
+                       const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
+  afterReceiveData(const Data& data, const FaceEndpoint& ingress,
+                   const shared_ptr<pit::Entry>& pitEntry) override;
+
+  void
+  afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                    const shared_ptr<pit::Entry>& pitEntry) override;
 
 private: // operations
-
-  /** \brief Send an Interest to all possible faces
+  /** \brief Send an Interest to all possible faces.
    *
    *  This function is invoked when the forwarder has no matching FIB entries for
    *  an incoming discovery Interest, which will be forwarded to faces that
@@ -106,20 +114,25 @@ private: // operations
   broadcastInterest(const Interest& interest, const Face& inFace,
                     const shared_ptr<pit::Entry>& pitEntry);
 
-  /** \brief Send an Interest to \p nexthops
-   */
   void
-  multicastInterest(const Interest& interest, const Face& inFace,
-                    const shared_ptr<pit::Entry>& pitEntry,
-                    const fib::NextHopList& nexthops);
+  noNexthopHandler(const FaceEndpoint& ingress, const Interest& interest,
+                   const shared_ptr<pit::Entry>& pitEntry);
+
+  void
+  allNexthopTriedHandler(const FaceEndpoint& ingress, const Interest& interest,
+                         const shared_ptr<pit::Entry>& pitEntry, const fib::NextHopList& nexthops);
+
+  void
+  hasUntriedNexthopHandler(const FaceEndpoint& ingress, Face& outFace, const Interest& interest,
+                           const shared_ptr<pit::Entry>& pitEntry);
 
   /** \brief Find a Prefix Announcement for the Data on the RIB thread, and forward
-   *         the Data with the Prefix Announcement on the main thread
+   *         the Data with the Prefix Announcement on the main thread.
    */
   void
   asyncProcessData(const shared_ptr<pit::Entry>& pitEntry, const Face& inFace, const Data& data);
 
-  /** \brief Check whether a PrefixAnnouncement needs to be attached to an incoming Data
+  /** \brief Check whether a PrefixAnnouncement needs to be attached to an incoming Data.
    *
    *  The conditions that a Data packet requires a PrefixAnnouncement are
    *    - the incoming Interest was discovery and
@@ -129,22 +142,31 @@ private: // operations
   static bool
   needPrefixAnn(const shared_ptr<pit::Entry>& pitEntry);
 
-  /** \brief Add a route using RibManager::slAnnounce on the RIB thread
+  /** \brief Add a route using RibManager::slAnnounce on the RIB thread.
    */
   void
   addRoute(const shared_ptr<pit::Entry>& pitEntry, const Face& inFace,
            const Data& data, const ndn::PrefixAnnouncement& pa);
 
-  /** \brief renew a route using RibManager::slRenew on the RIB thread
+  /** \brief Renew a route using RibManager::slRenew on the RIB thread.
    */
   void
   renewRoute(const Name& name, FaceId inFaceId, time::milliseconds maxLifetime);
 
 private:
+  bool
+  isThisConsumer(const shared_ptr<pit::Entry>& pitEntry);
+
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   static const time::milliseconds ROUTE_RENEW_LIFETIME;
+  static const time::milliseconds RETX_SUPPRESSION_INITIAL;
+  static const time::milliseconds RETX_SUPPRESSION_MAX;
+  static const int RETX_TRIGGER_BROADCAST_COUNT;
+  RetxSuppressionExponential m_retxSuppression;
+
+  friend ProcessNackTraits<SelfLearningStrategy>;
 };
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
 #endif // NFD_DAEMON_FW_SELF_LEARNING_STRATEGY_HPP

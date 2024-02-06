@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,22 +32,26 @@
 
 #include <queue>
 
-namespace nfd {
-namespace face {
+#include <boost/asio/defer.hpp>
+#include <boost/asio/write.hpp>
 
-/** \brief Implements Transport for stream-based protocols.
+namespace nfd::face {
+
+/**
+ * \brief Implements a Transport for stream-based protocols.
  *
- *  \tparam Protocol a stream-based protocol in Boost.Asio
+ * \tparam Protocol a stream-based protocol in Boost.Asio
  */
 template<class Protocol>
 class StreamTransport : public Transport
 {
 public:
-  typedef Protocol protocol;
+  using protocol = Protocol;
 
-  /** \brief Construct stream transport.
+  /**
+   * \brief Construct stream transport.
    *
-   *  \param socket Protocol-specific socket for the created transport
+   * \param socket Protocol-specific socket for the created transport
    */
   explicit
   StreamTransport(typename protocol::socket&& socket);
@@ -63,7 +67,7 @@ protected:
   deferredClose();
 
   void
-  doSend(const Block& packet, const EndpointId& endpoint) override;
+  doSend(const Block& packet) override;
 
   void
   sendFromQueue();
@@ -101,17 +105,15 @@ protected:
 
 private:
   uint8_t m_receiveBuffer[ndn::MAX_NDN_PACKET_SIZE];
-  size_t m_receiveBufferSize;
+  size_t m_receiveBufferSize = 0;
   std::queue<Block> m_sendQueue;
-  size_t m_sendQueueBytes;
+  size_t m_sendQueueBytes = 0;
 };
 
 
 template<class T>
 StreamTransport<T>::StreamTransport(typename StreamTransport::protocol::socket&& socket)
   : m_socket(std::move(socket))
-  , m_receiveBufferSize(0)
-  , m_sendQueueBytes(0)
 {
   // No queue capacity is set because there is no theoretical limit to the size of m_sendQueue.
   // Therefore, protecting against send queue overflows is less critical than in other transport
@@ -143,12 +145,12 @@ StreamTransport<T>::doClose()
     // Use the non-throwing variants and ignore errors, if any.
     boost::system::error_code error;
     m_socket.cancel(error);
-    m_socket.shutdown(protocol::socket::shutdown_both, error);
+    m_socket.shutdown(boost::asio::socket_base::shutdown_both, error);
   }
 
   // Ensure that the Transport stays alive at least until
   // all pending handlers are dispatched
-  getGlobalIoService().post([this] { deferredClose(); });
+  boost::asio::defer(getGlobalIoService(), [this] { deferredClose(); });
 
   // Some bug or feature of Boost.Asio (see https://redmine.named-data.net/issues/1856):
   //
@@ -180,7 +182,7 @@ StreamTransport<T>::deferredClose()
 
 template<class T>
 void
-StreamTransport<T>::doSend(const Block& packet, const EndpointId&)
+StreamTransport<T>::doSend(const Block& packet)
 {
   NFD_LOG_FACE_TRACE(__func__);
 
@@ -244,16 +246,17 @@ StreamTransport<T>::handleReceive(const boost::system::error_code& error,
   NFD_LOG_FACE_TRACE("Received: " << nBytesReceived << " bytes");
 
   m_receiveBufferSize += nBytesReceived;
+  auto bufferView = ndn::make_span(m_receiveBuffer, m_receiveBufferSize);
   size_t offset = 0;
   bool isOk = true;
-  while (m_receiveBufferSize - offset > 0) {
+  while (offset < bufferView.size()) {
     Block element;
-    std::tie(isOk, element) = Block::fromBuffer(m_receiveBuffer + offset, m_receiveBufferSize - offset);
+    std::tie(isOk, element) = Block::fromBuffer(bufferView.subspan(offset));
     if (!isOk)
       break;
 
     offset += element.size();
-    BOOST_ASSERT(offset <= m_receiveBufferSize);
+    BOOST_ASSERT(offset <= bufferView.size());
 
     this->receive(element);
   }
@@ -332,7 +335,6 @@ StreamTransport<T>::getSendQueueBytes() const
   return m_sendQueueBytes;
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_STREAM_TRANSPORT_HPP

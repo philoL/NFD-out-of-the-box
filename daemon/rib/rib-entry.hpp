@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,22 +30,17 @@
 
 #include <list>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-/** \brief Represents a RIB entry, which contains one or more Routes with the same prefix.
+/**
+ * \brief Represents a RIB entry, which contains one or more Routes with the same prefix.
  */
 class RibEntry : public std::enable_shared_from_this<RibEntry>
 {
 public:
-  typedef std::list<Route> RouteList;
-  typedef RouteList::iterator iterator;
-  typedef RouteList::const_iterator const_iterator;
-
-  RibEntry()
-    : m_nRoutesWithCaptureSet(0)
-  {
-  }
+  using RouteList = std::list<Route>;
+  using iterator = RouteList::iterator;
+  using const_iterator = RouteList::const_iterator;
 
   void
   setName(const Name& prefix);
@@ -71,10 +66,12 @@ public:
   bool
   hasChildren() const;
 
-  /** \brief inserts a new route into the entry's route list
+  /** \brief Inserts a new route into the entry's route list.
+   *
    *  If another route already exists with the same faceId and origin,
    *  the new route is not inserted.
-   *  \return a pair, whose first element is the iterator to the newly
+   *
+   *  \return A pair, whose first element is the iterator to the newly
    *  inserted element if the insert succeeds and to the
    *  previously-existing element otherwise, and whose second element
    *  is true if the insert succeeds and false otherwise.
@@ -82,19 +79,21 @@ public:
   std::pair<RibEntry::iterator, bool>
   insertRoute(const Route& route);
 
-  /** \brief erases a Route with the same faceId and origin
+  /**
+   * \brief Erases a Route with the same FaceId and origin.
    */
   void
   eraseRoute(const Route& route);
 
-  /** \brief erases a Route with the passed iterator
-   *  \return{ an iterator to the element that followed the erased iterator }
+  /**
+   * \brief Erases a Route with the passed iterator.
+   * \return An iterator to the element that followed the erased iterator
    */
   iterator
   eraseRoute(RouteList::iterator route);
 
   bool
-  hasFaceId(const uint64_t faceId) const;
+  hasFaceId(uint64_t faceId) const;
 
   const RouteList&
   getRoutes() const;
@@ -117,23 +116,25 @@ public:
   void
   removeInheritedRoute(const Route& route);
 
-  /** \brief Returns the routes this namespace has inherited.
-   *  The inherited routes returned represent inherited routes this namespace has in the FIB.
-   *  \return{ routes inherited by this namespace }
+  /**
+   * \brief Returns the routes this namespace has inherited.
+   *
+   * The inherited routes returned represent inherited routes this namespace has in the FIB.
    */
   const RouteList&
   getInheritedRoutes() const;
 
-  /** \brief Finds an inherited route with a matching face ID.
-   *  \return{ An iterator to the matching route if one is found;
-   *           otherwise, an iterator to the end of the entry's
-   *           inherited route list }
+  /**
+   * \brief Finds an inherited route with a matching face ID.
+   * \return An iterator to the matching route if one is found;
+   *         otherwise, an iterator to the end of the entry's
+   *         inherited route list
    */
   RouteList::const_iterator
   findInheritedRoute(const Route& route) const;
 
   /** \brief Determines if the entry has an inherited route with a matching face ID.
-   *  \return{ True, if a matching inherited route is found; otherwise, false. }
+   *  \return True, if a matching inherited route is found; otherwise, false.
    */
   bool
   hasInheritedRoute(const Route& route) const;
@@ -143,13 +144,13 @@ public:
 
   /** \brief Determines if the entry has an inherited route with the passed
    *         face ID and its child inherit flag set.
-   *  \return{ True, if a matching inherited route is found; otherwise, false. }
+   *  \return True, if a matching inherited route is found; otherwise, false.
    */
   bool
   hasChildInheritOnFaceId(uint64_t faceId) const;
 
   /** \brief Returns the route with the lowest cost that has the passed face ID.
-   *  \return{ The route with the lowest cost that has the passed face ID}
+   *  \return The route with the lowest cost that has the passed face ID
    */
   const Route*
   getRouteWithLowestCostByFaceId(uint64_t faceId) const;
@@ -159,8 +160,6 @@ public:
 
   /** \brief Returns the route with the lowest cost that has the passed face ID
    *         and its child inherit flag set.
-   *  \return{ The route with the lowest cost that has the passed face ID
-   *           and its child inherit flag set }
    */
   const Route*
   getRouteWithLowestCostAndChildInheritByFaceId(uint64_t faceId) const;
@@ -175,7 +174,7 @@ public:
    *  confined within [\p minExpiration, \p maxExpiration] range. The caller is expected to sign
    *  this announcement.
    *
-   *  \warning (minExpiration > maxExpiration) triggers undefined behavior.
+   *  \warning `minExpiration > maxExpiration` triggers undefined behavior.
    */
   ndn::PrefixAnnouncement
   getPrefixAnnouncement(time::milliseconds minExpiration = 15_s,
@@ -210,7 +209,7 @@ private:
    *  If the number is greater than zero, a route on the namespace has its capture
    *  flag set which means the namespace should not inherit any routes.
    */
-  uint64_t m_nRoutesWithCaptureSet;
+  uint64_t m_nRoutesWithCaptureSet = 0;
 };
 
 inline void
@@ -228,7 +227,7 @@ RibEntry::getName() const
 inline void
 RibEntry::setParent(shared_ptr<RibEntry> parent)
 {
-  m_parent = parent;
+  m_parent = std::move(parent);
 }
 
 inline shared_ptr<RibEntry>
@@ -282,7 +281,6 @@ RibEntry::end()
 std::ostream&
 operator<<(std::ostream& os, const RibEntry& entry);
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_RIB_ENTRY_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,26 +26,25 @@
 #include "tcp-transport.hpp"
 #include "common/global.hpp"
 
+#include <boost/asio/defer.hpp>
+
 #if defined(__linux__)
 #include <linux/sockios.h>
 #include <sys/ioctl.h>
 #endif
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-NFD_LOG_MEMBER_INIT_SPECIALIZED(StreamTransport<boost::asio::ip::tcp>, TcpTransport);
+namespace ip = boost::asio::ip;
 
-time::milliseconds TcpTransport::s_initialReconnectWait = 1_s;
-time::milliseconds TcpTransport::s_maxReconnectWait = 5_min;
-float TcpTransport::s_reconnectWaitMultiplier = 2.0f;
+NFD_LOG_MEMBER_INIT_SPECIALIZED(StreamTransport<ip::tcp>, TcpTransport);
 
-TcpTransport::TcpTransport(protocol::socket&& socket,
+TcpTransport::TcpTransport(ip::tcp::socket&& socket,
                            ndn::nfd::FacePersistency persistency,
                            ndn::nfd::FaceScope faceScope)
   : StreamTransport(std::move(socket))
   , m_remoteEndpoint(m_socket.remote_endpoint())
-  , m_nextReconnectWait(s_initialReconnectWait)
+  , m_nextReconnectWait(INITIAL_RECONNECT_DELAY)
 {
   this->setLocalUri(FaceUri(m_socket.local_endpoint()));
   this->setRemoteUri(FaceUri(m_socket.remote_endpoint()));
@@ -110,7 +109,7 @@ TcpTransport::handleError(const boost::system::error_code& error)
     m_socket.cancel(ec);
 
     // do this asynchronously because there could be some callbacks still pending
-    getGlobalIoService().post([this] { reconnect(); });
+    boost::asio::defer(getGlobalIoService(), [this] { reconnect(); });
   }
   else {
     StreamTransport::handleError(error);
@@ -133,13 +132,7 @@ TcpTransport::reconnect()
   BOOST_ASSERT(getState() == TransportState::DOWN);
 
   // recreate the socket
-  m_socket = protocol::socket(
-#if BOOST_VERSION >= 107000
-                              m_socket.get_executor()
-#else
-                              m_socket.get_io_service()
-#endif // BOOST_VERSION >= 107000
-                              );
+  m_socket = ip::tcp::socket(m_socket.get_executor());
   this->resetReceiveBuffer();
   this->resetSendQueue();
 
@@ -165,7 +158,7 @@ TcpTransport::handleReconnect(const boost::system::error_code& error)
   }
 
   m_reconnectEvent.cancel();
-  m_nextReconnectWait = s_initialReconnectWait;
+  m_nextReconnectWait = INITIAL_RECONNECT_DELAY;
 
   this->setLocalUri(FaceUri(m_socket.local_endpoint()));
   NFD_LOG_FACE_TRACE("TCP connection reestablished");
@@ -182,11 +175,11 @@ TcpTransport::handleReconnectTimeout()
 
   // exponentially back off the reconnection timer
   m_nextReconnectWait =
-      std::min(time::duration_cast<time::milliseconds>(m_nextReconnectWait * s_reconnectWaitMultiplier),
-               s_maxReconnectWait);
+      std::min(time::duration_cast<time::milliseconds>(m_nextReconnectWait * RECONNECT_DELAY_MULTIPLIER),
+               MAX_RECONNECT_DELAY);
 
   // do this asynchronously because there could be some callbacks still pending
-  getGlobalIoService().post([this] { reconnect(); });
+  boost::asio::defer(getGlobalIoService(), [this] { reconnect(); });
 }
 
 void
@@ -196,5 +189,4 @@ TcpTransport::doClose()
   StreamTransport::doClose();
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

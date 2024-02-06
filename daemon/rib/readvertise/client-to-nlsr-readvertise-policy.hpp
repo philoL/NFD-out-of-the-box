@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,27 +28,25 @@
 
 #include "readvertise-policy.hpp"
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-/** \brief a policy to readvertise routes registered by end hosts into NLSR
+/** \brief A policy to readvertise routes registered by end hosts into NLSR.
  */
 class ClientToNlsrReadvertisePolicy : public ReadvertisePolicy
 {
 public:
-  /** \brief advertise if the route's origin is client
+  /** \brief Advertise if the route's origin is client.
    *
    *  If the route origin is "client" (typically from auto prefix propagation), readvertise it
    *  using the default signing identity.
    */
-  optional<ReadvertiseAction>
+  std::optional<ReadvertiseAction>
   handleNewRoute(const RibRouteRef& ribRoute) const override;
 
   time::milliseconds
   getRefreshInterval() const override;
 };
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_READVERTISE_CLIENT_TO_NLSR_READVERTISE_POLICY_HPP

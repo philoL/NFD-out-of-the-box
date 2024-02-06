@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,12 +31,11 @@
 #include <fstream>
 #include <sstream>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(TestConfigFile)
 
-static const std::string CONFIG = R"CONFIG(
+const std::string CONFIG = R"CONFIG(
   a
   {
     akey avalue
@@ -48,8 +47,8 @@ static const std::string CONFIG = R"CONFIG(
 )CONFIG";
 
 // counts of the respective section counts in config_example.info
-const int CONFIG_N_A_SECTIONS = 1;
-const int CONFIG_N_B_SECTIONS = 1;
+constexpr int CONFIG_N_A_SECTIONS = 1;
+constexpr int CONFIG_N_B_SECTIONS = 1;
 
 class DummySubscriber
 {
@@ -106,8 +105,8 @@ public:
   DummyAllSubscriber(ConfigFile& config, bool expectDryRun = false)
     : DummySubscriber(config, CONFIG_N_A_SECTIONS, CONFIG_N_B_SECTIONS, expectDryRun)
   {
-    config.addSectionHandler("a", bind(&DummySubscriber::onA, this, _1, _2));
-    config.addSectionHandler("b", bind(&DummySubscriber::onB, this, _1, _2));
+    config.addSectionHandler("a", std::bind(&DummySubscriber::onA, this, _1, _2));
+    config.addSectionHandler("b", std::bind(&DummySubscriber::onB, this, _1, _2));
   }
 };
 
@@ -121,10 +120,10 @@ public:
                       expectDryRun)
   {
     if (sectionName == "a") {
-      config.addSectionHandler(sectionName, bind(&DummySubscriber::onA, this, _1, _2));
+      config.addSectionHandler(sectionName, std::bind(&DummySubscriber::onA, this, _1, _2));
     }
     else if (sectionName == "b") {
-      config.addSectionHandler(sectionName, bind(&DummySubscriber::onB, this, _1, _2));
+      config.addSectionHandler(sectionName, std::bind(&DummySubscriber::onB, this, _1, _2));
     }
     else {
       BOOST_FAIL("Test setup error: Unexpected section name '" << sectionName << "'");
@@ -304,8 +303,8 @@ BOOST_FIXTURE_TEST_CASE(UncoveredSections, MissingCallbackFixture)
   ConfigFile file;
   BOOST_REQUIRE_THROW(file.parse(CONFIG, false, "dummy-config"), ConfigFile::Error);
 
-  ConfigFile permissiveFile(bind(&MissingCallbackFixture::checkMissingHandler,
-                                 this, _1, _2, _3, _4));
+  ConfigFile permissiveFile(std::bind(&MissingCallbackFixture::checkMissingHandler,
+                                      this, _1, _2, _3, _4));
   DummyOneSubscriber subA(permissiveFile, "a");
 
   BOOST_REQUIRE_NO_THROW(permissiveFile.parse(CONFIG, false, "dummy-config"));
@@ -325,7 +324,108 @@ BOOST_AUTO_TEST_CASE(CoveredByPartialSubscribers)
   BOOST_CHECK(subB.allCallbacksFired());
 }
 
+BOOST_AUTO_TEST_CASE(ParseNumber)
+{
+  std::istringstream input(R"CONFIG(
+    a -125
+    b 156
+    c 100000
+    d efg
+    e 123.456e-10
+    f 123abc
+    g ""
+    h " -1"
+  )CONFIG");
+  ConfigSection section;
+  boost::property_tree::read_info(input, section);
+
+  // Read various types and ensure they return the correct value
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<short>(section.get_child("a"), "a", "section"), -125);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<int>(section.get_child("a"), "a", "section"), -125);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<long>(section.get_child("a"), "a", "section"), -125);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<double>(section.get_child("a"), "a", "section"), -125.0);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<float>(section.get_child("a"), "a", "section"), -125.0);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<short>(section.get_child("b"), "b", "section"), 156);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<int>(section.get_child("b"), "b", "section"), 156);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<long>(section.get_child("b"), "b", "section"), 156);
+  BOOST_CHECK_CLOSE(ConfigFile::parseNumber<double>(section.get_child("e"), "e", "section"), 123.456e-10, 0.0001);
+  BOOST_CHECK_CLOSE(ConfigFile::parseNumber<float>(section.get_child("e"), "e", "section"), 123.456e-10, 0.0001);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<int>(section.get_child("h"), "h", "section"), -1);
+
+  // Check throw on out of range
+  BOOST_CHECK_THROW(ConfigFile::parseNumber<int16_t>(section.get_child("c"), "c", "section"),
+                    ConfigFile::Error);
+
+  // Check throw on non-integer for integer types
+  BOOST_CHECK_THROW(ConfigFile::parseNumber<int>(section.get_child("d"), "d", "section"),
+                    ConfigFile::Error);
+  BOOST_CHECK_THROW(ConfigFile::parseNumber<int>(section.get_child("e"), "e", "section"),
+                    ConfigFile::Error);
+  BOOST_CHECK_THROW(ConfigFile::parseNumber<int>(section.get_child("f"), "f", "section"),
+                    ConfigFile::Error);
+  BOOST_CHECK_THROW(ConfigFile::parseNumber<int>(section.get_child("g"), "g", "section"),
+                    ConfigFile::Error);
+
+  // Should throw exception if try to read unsigned from negative value
+  BOOST_CHECK_THROW(ConfigFile::parseNumber<uint16_t>(section.get_child("a"), "a", "section"),
+                    ConfigFile::Error);
+  BOOST_CHECK_EQUAL(ConfigFile::parseNumber<uint16_t>(section.get_child("b"), "b", "section"), 156);
+  BOOST_CHECK_THROW(ConfigFile::parseNumber<uint32_t>(section.get_child("h"), "h", "section"),
+                    ConfigFile::Error);
+}
+
+BOOST_AUTO_TEST_CASE(CheckRange)
+{
+  {
+    uint32_t value = 8000;
+    uint32_t min = 8000;
+    uint32_t max = 8999;
+    ConfigFile::checkRange(value, min, max, "key", "section");
+  }
+
+  {
+    size_t value = 8999;
+    size_t min = 8000;
+    size_t max = 8999;
+    ConfigFile::checkRange(value, min, max, "key", "section");
+  }
+
+  {
+    int64_t value = -7000;
+    int64_t min = -7999;
+    int64_t max = 1000;
+    ConfigFile::checkRange(value, min, max, "key", "section");
+  }
+
+  {
+    uint32_t value = 7999;
+    uint32_t min = 8000;
+    uint32_t max = 8999;
+    BOOST_CHECK_THROW(ConfigFile::checkRange(value, min, max, "key", "section"), ConfigFile::Error);
+  }
+
+  {
+    int16_t value = 9000;
+    int16_t min = 8000;
+    int16_t max = 8999;
+    BOOST_CHECK_THROW(ConfigFile::checkRange(value, min, max, "key", "section"), ConfigFile::Error);
+  }
+
+  {
+    int32_t value = -8000;
+    int32_t min = -7999;
+    int32_t max = 1000;
+    BOOST_CHECK_THROW(ConfigFile::checkRange(value, min, max, "key", "section"), ConfigFile::Error);
+  }
+
+  {
+    int64_t value = 0x1001;
+    int64_t min = -0x7fff;
+    int64_t max = 0x1000;
+    BOOST_CHECK_THROW(ConfigFile::checkRange(value, min, max, "key", "section"), ConfigFile::Error);
+  }
+}
+
 BOOST_AUTO_TEST_SUITE_END() // TestConfigFile
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

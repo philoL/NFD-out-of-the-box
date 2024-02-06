@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,8 +28,7 @@
 
 #include <ndn-cxx/mgmt/nfd/control-parameters.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
 NFD_LOG_INIT(FibUpdater);
 
@@ -95,13 +94,13 @@ FibUpdater::computeUpdatesForRegistration(const RibUpdate& update)
   const Name& prefix = update.getName();
   const Route& route = update.getRoute();
 
-  Rib::const_iterator it = m_rib.find(prefix);
+  auto it = m_rib.find(prefix);
 
   // Name prefix exists
   if (it != m_rib.end()) {
     shared_ptr<const RibEntry> entry(it->second);
 
-    RibEntry::const_iterator existingRoute = entry->findRoute(route);
+    auto existingRoute = entry->findRoute(route);
 
     // Route will be new
     if (existingRoute == entry->end()) {
@@ -114,8 +113,7 @@ FibUpdater::computeUpdatesForRegistration(const RibUpdate& update)
       // Route already exists
       RibEntry entryCopy = *entry;
 
-      Route& routeToUpdate = *(entryCopy.findRoute(route));
-
+      Route& routeToUpdate = *entryCopy.findRoute(route);
       routeToUpdate.flags = route.flags;
       routeToUpdate.cost = route.cost;
       routeToUpdate.expires = route.expires;
@@ -149,16 +147,14 @@ FibUpdater::computeUpdatesForUnregistration(const RibUpdate& update)
   const Name& prefix = update.getName();
   const Route& route = update.getRoute();
 
-  Rib::const_iterator ribIt = m_rib.find(prefix);
+  auto ribIt = m_rib.find(prefix);
 
   // Name prefix exists
   if (ribIt != m_rib.end()) {
     shared_ptr<const RibEntry> entry(ribIt->second);
-
     const bool hadCapture = entry->hasCapture();
 
-    RibEntry::const_iterator existing = entry->findRoute(route);
-
+    auto existing = entry->findRoute(route);
     if (existing != entry->end()) {
       RibEntry temp = *entry;
 
@@ -190,11 +186,10 @@ FibUpdater::sendUpdates(const FibUpdateList& updates,
                         const FibUpdateSuccessCallback& onSuccess,
                         const FibUpdateFailureCallback& onFailure)
 {
-  std::string updateString = (updates.size() == 1) ? " update" : " updates";
-  NFD_LOG_DEBUG("Applying " << updates.size() << updateString << " to FIB");
+  NFD_LOG_DEBUG("Applying " << updates.size() << " FIB update(s)");
 
   for (const FibUpdate& update : updates) {
-    NFD_LOG_DEBUG("Sending FIB update: " << update);
+    NFD_LOG_DEBUG("Sending " << update);
 
     if (update.action == FibUpdate::ADD_NEXTHOP) {
       sendAddNextHopUpdate(update, onSuccess, onFailure);
@@ -240,8 +235,8 @@ FibUpdater::sendAddNextHopUpdate(const FibUpdate& update,
       .setName(update.name)
       .setFaceId(update.faceId)
       .setCost(update.cost),
-    bind(&FibUpdater::onUpdateSuccess, this, update, onSuccess, onFailure),
-    bind(&FibUpdater::onUpdateError, this, update, onSuccess, onFailure, _1, nTimeouts));
+    [=] (const auto&) { onUpdateSuccess(update, onSuccess, onFailure); },
+    [=] (const auto& resp) { onUpdateError(update, onSuccess, onFailure, resp, nTimeouts); });
 }
 
 void
@@ -254,12 +249,12 @@ FibUpdater::sendRemoveNextHopUpdate(const FibUpdate& update,
     ControlParameters()
       .setName(update.name)
       .setFaceId(update.faceId),
-    bind(&FibUpdater::onUpdateSuccess, this, update, onSuccess, onFailure),
-    bind(&FibUpdater::onUpdateError, this, update, onSuccess, onFailure, _1, nTimeouts));
+    [=] (const auto&) { onUpdateSuccess(update, onSuccess, onFailure); },
+    [=] (const auto& resp) { onUpdateError(update, onSuccess, onFailure, resp, nTimeouts); });
 }
 
 void
-FibUpdater::onUpdateSuccess(const FibUpdate update,
+FibUpdater::onUpdateSuccess(const FibUpdate& update,
                             const FibUpdateSuccessCallback& onSuccess,
                             const FibUpdateFailureCallback& onFailure)
 {
@@ -280,14 +275,14 @@ FibUpdater::onUpdateSuccess(const FibUpdate update,
 }
 
 void
-FibUpdater::onUpdateError(const FibUpdate update,
+FibUpdater::onUpdateError(const FibUpdate& update,
                           const FibUpdateSuccessCallback& onSuccess,
                           const FibUpdateFailureCallback& onFailure,
                           const ndn::nfd::ControlResponse& response, uint32_t nTimeouts)
 {
   uint32_t code = response.getCode();
   NFD_LOG_DEBUG("Failed to apply " << update <<
-                " (code: " << code << ", error: " << response.getText() << ")");
+                " [code: " << code << ", error: " << response.getText() << "]");
 
   if (code == ndn::nfd::Controller::ERROR_TIMEOUT && nTimeouts < MAX_NUM_TIMEOUTS) {
     sendAddNextHopUpdate(update, onSuccess, onFailure, ++nTimeouts);
@@ -305,19 +300,18 @@ FibUpdater::onUpdateError(const FibUpdate update,
     }
   }
   else {
-    NDN_THROW(Error("Non-recoverable error: " + response.getText() + " code: " + to_string(code)));
+    NDN_THROW(Error("Non-recoverable error " + std::to_string(code) + ": " + response.getText()));
   }
 }
 
 void
-FibUpdater::addFibUpdate(FibUpdate update)
+FibUpdater::addFibUpdate(const FibUpdate& update)
 {
   FibUpdateList& updates = (update.faceId == m_batchFaceId) ? m_updatesForBatchFaceId :
                                                               m_updatesForNonBatchFaceId;
 
-  // If an update with the same name and route already exists,
-  // replace it
-  FibUpdateList::iterator it = std::find_if(updates.begin(), updates.end(),
+  // If an update with the same name and route already exists, replace it
+  auto it = std::find_if(updates.begin(), updates.end(),
     [&update] (const FibUpdate& other) {
       return update.name == other.name && update.faceId == other.faceId;
     });
@@ -400,7 +394,7 @@ FibUpdater::createFibUpdatesForNewRibEntry(const Name& name, const Route& route,
 
     // If there is an ancestor route which is the same as the new route, replace it
     // with the new route
-    Rib::RouteSet::iterator it = ancestorRoutes.find(route);
+    auto it = ancestorRoutes.find(route);
 
     // There is a route that needs to be overwritten, erase and then replace
     if (it != ancestorRoutes.end()) {
@@ -525,7 +519,7 @@ FibUpdater::createFibUpdatesForUpdatedRoute(const RibEntry& entry, const Route& 
     else {
       // Look for an ancestor that was blocked previously
       const Rib::RouteSet ancestorRoutes = m_rib.getAncestorRoutes(entry);
-      Rib::RouteSet::iterator it = ancestorRoutes.find(route);
+      auto it = ancestorRoutes.find(route);
 
       // If an ancestor is found, add it to children
       if (it != ancestorRoutes.end()) {
@@ -559,7 +553,7 @@ FibUpdater::createFibUpdatesForUpdatedRoute(const RibEntry& entry, const Route& 
 
 void
 FibUpdater::createFibUpdatesForErasedRoute(const RibEntry& entry, const Route& route,
-                                               const bool captureWasTurnedOff)
+                                           bool captureWasTurnedOff)
 {
   addFibUpdate(FibUpdate::createRemoveUpdate(entry.getName(), route.faceId));
 
@@ -616,7 +610,7 @@ FibUpdater::createFibUpdatesForErasedRoute(const RibEntry& entry, const Route& r
   if (!entry.hasCapture() && entry.getNRoutes() != 0) {
     // If there is an ancestor route which is the same as the erased route, add that route
     // to the current entry
-    Rib::RouteSet::iterator it = ancestorRoutes.find(route);
+    auto it = ancestorRoutes.find(route);
 
     if (it != ancestorRoutes.end()) {
       addInheritedRoute(entry.getName(), *it);
@@ -712,5 +706,4 @@ FibUpdater::removeInheritedRoute(const Name& name, const Route& route)
   m_inheritedRoutes.push_back(update);
 }
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib

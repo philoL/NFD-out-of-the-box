@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,13 +28,12 @@
 
 #include "core/common.hpp"
 
-/** \brief contain name prefixes that affect namespace-based scope control
+/** \brief Contain name prefixes that affect namespace-based scope control.
  *  \sa https://redmine.named-data.net/projects/nfd/wiki/ScopeControl
  */
-namespace nfd {
-namespace scope_prefix {
+namespace nfd::scope_prefix {
 
-/** \brief ndn:/localhost
+/** \brief The localhost scope `ndn:/localhost`.
  *
  *  The localhost scope limits propagation to the applications on the originating host.
  *
@@ -42,9 +41,9 @@ namespace scope_prefix {
  *  \li Interest can come from and go to local faces only.
  *  \li Data can come from and go to local faces only.
  */
-extern const Name LOCALHOST;
+inline const Name LOCALHOST{"/localhost"};
 
-/** \brief ndn:/localhop
+/** \brief The localhop scope `ndn:/localhop`.
  *
  *  The localhop scope limits propagation to no further than the next node.
  *
@@ -56,9 +55,8 @@ extern const Name LOCALHOST;
  *
  *  Data packets under prefix ndn:/localhop are unrestricted.
  */
-extern const Name LOCALHOP;
+inline const Name LOCALHOP{"/localhop"};
 
-} // namespace scope_prefix
-} // namespace nfd
+} // namespace nfd::scope_prefix
 
 #endif // NFD_DAEMON_FW_SCOPE_PREFIX_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2017,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,58 +29,68 @@
 #include "channel.hpp"
 #include "websocketpp.hpp"
 
-namespace nfd {
+#include <map>
 
-namespace websocket {
-typedef boost::asio::ip::tcp::endpoint Endpoint;
-} // namespace websocket
+namespace nfd::websocket {
+using Endpoint = boost::asio::ip::tcp::endpoint;
+} // namespace nfd::websocket
 
-namespace face {
+namespace nfd::face {
 
 /**
- * \brief Class implementing WebSocket-based channel to create faces
+ * \brief Class implementing a WebSocket-based channel to create faces.
  */
-class WebSocketChannel : public Channel
+class WebSocketChannel final : public Channel
 {
 public:
   /**
-   * \brief Create WebSocket channel for the local endpoint
+   * \brief Create a WebSocket channel for the given \p localEndpoint.
    *
-   * To enable creation of faces upon incoming connections,
-   * one needs to explicitly call WebSocketChannel::listen method.
-   * The created channel is bound to the localEndpoint.
+   * To enable the creation of faces upon incoming connections, one needs to
+   * explicitly call listen(). The created channel is bound to \p localEndpoint.
    */
   explicit
   WebSocketChannel(const websocket::Endpoint& localEndpoint);
 
   bool
-  isListening() const override
+  isListening() const final
   {
     return m_server.is_listening();
   }
 
   size_t
-  size() const override
+  size() const final
   {
     return m_channelFaces.size();
   }
 
+  void
+  connect(const EndpointId&,
+          const FaceParams&,
+          const FaceCreatedCallback&,
+          const FaceCreationFailedCallback&,
+          time::nanoseconds) override
+  {
+  }
+
   /**
    * \brief Enable listening on the local endpoint, accept connections,
-   *        and create faces when remote host makes a connection
+   *        and create faces when remote host makes a connection.
    *
    * \param onFaceCreated Callback to notify successful creation of a face
    */
   void
   listen(const FaceCreatedCallback& onFaceCreated);
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
-  /** \pre listen hasn't been invoked
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+  /**
+   * \pre listen() has not been invoked.
    */
   void
   setPingInterval(time::milliseconds interval);
 
-  /** \pre listen hasn't been invoked
+  /**
+   * \pre listen() has not been invoked.
    */
   void
   setPongTimeout(time::milliseconds timeout);
@@ -111,7 +121,6 @@ private:
   time::milliseconds m_pingInterval;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_WEBSOCKET_CHANNEL_HPP

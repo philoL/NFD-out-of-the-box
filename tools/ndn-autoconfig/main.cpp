@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <string.h>
 
+#include <boost/asio/signal_set.hpp>
 #include <boost/exception/diagnostic_information.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/parsers.hpp>
@@ -38,22 +39,13 @@
 #include <ndn-cxx/util/scheduler.hpp>
 #include <ndn-cxx/util/time.hpp>
 
-// suppress warning caused by boost::program_options::parse_config_file
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wundefined-func-template"
-#endif
-
-// ndn-autoconfig is an NDN tool not an NFD tool, so it uses ndn::tools::autoconfig namespace.
-// It lives in NFD repository because nfd-start can automatically start ndn-autoconfig in daemon mode.
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
 namespace po = boost::program_options;
 
-const time::nanoseconds DAEMON_INITIAL_DELAY = 100_ms;
-const time::nanoseconds DAEMON_UNCONDITIONAL_INTERVAL = 1_h;
-const time::nanoseconds NETMON_DAMPEN_PERIOD = 5_s;
+constexpr time::nanoseconds DAEMON_INITIAL_DELAY = 100_ms;
+constexpr time::nanoseconds DAEMON_UNCONDITIONAL_INTERVAL = 1_h;
+constexpr time::nanoseconds NETMON_DAMPEN_PERIOD = 5_s;
 
 static void
 usage(std::ostream& os,
@@ -68,10 +60,10 @@ usage(std::ostream& os,
 static void
 runDaemon(Procedure& proc)
 {
-  boost::asio::signal_set terminateSignals(proc.getIoService());
+  boost::asio::signal_set terminateSignals(proc.getIoContext());
   terminateSignals.add(SIGINT);
   terminateSignals.add(SIGTERM);
-  terminateSignals.async_wait([&] (const boost::system::error_code& error, int signalNo) {
+  terminateSignals.async_wait([&] (const auto& error, int signalNo) {
     if (error) {
       return;
     }
@@ -84,10 +76,10 @@ runDaemon(Procedure& proc)
       std::cerr << signalName;
     }
     std::cerr << std::endl;
-    proc.getIoService().stop();
+    proc.getIoContext().stop();
   });
 
-  Scheduler sched(proc.getIoService());
+  Scheduler sched(proc.getIoContext());
   scheduler::ScopedEventId runEvt;
   auto scheduleRerun = [&] (time::nanoseconds delay) {
     runEvt = sched.schedule(delay, [&] { proc.runOnce(); });
@@ -97,11 +89,11 @@ runDaemon(Procedure& proc)
     scheduleRerun(DAEMON_UNCONDITIONAL_INTERVAL);
   });
 
-  net::NetworkMonitor netmon(proc.getIoService());
+  net::NetworkMonitor netmon(proc.getIoContext());
   netmon.onNetworkStateChanged.connect([&] { scheduleRerun(NETMON_DAMPEN_PERIOD); });
 
   scheduleRerun(DAEMON_INITIAL_DELAY);
-  proc.getIoService().run();
+  proc.getIoContext().run();
 }
 
 static int
@@ -189,12 +181,10 @@ main(int argc, char** argv)
   return exitCode;
 }
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig
 
 int
 main(int argc, char** argv)
 {
-  return ndn::tools::autoconfig::main(argc, argv);
+  return ndn::autoconfig::main(argc, argv);
 }

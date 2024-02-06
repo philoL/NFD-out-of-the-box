@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,17 +28,17 @@
 
 #include "fw/strategy.hpp"
 
-namespace nfd {
-namespace tests {
+#include <limits>
 
-/** \brief strategy for unit testing
+namespace nfd::tests {
+
+/**
+ * \brief Forwarding strategy for unit testing.
  *
- *  Triggers are recorded but do nothing.
+ * Triggers are recorded but do nothing.
  *
- *  DummyStrategy registers itself as /dummy-strategy/<max-version>, so that it can be instantiated
- *  with any version number. Aliases can be created with \p registerAs function.
- *
- *  \note This strategy is not EndpointId-aware.
+ * DummyStrategy registers itself as `/dummy-strategy/<max-version>`, so that it can be instantiated
+ * with any version number. Aliases can be created with the registerAs() function.
  */
 class DummyStrategy : public fw::Strategy
 {
@@ -49,44 +49,46 @@ public:
   static Name
   getStrategyName(uint64_t version = std::numeric_limits<uint64_t>::max());
 
-  /** \brief constructor
+  /**
+   * \brief Constructor.
    *
-   *  \p name is recorded unchanged as \p getInstanceName() , and will not automatically
-   *  gain a version number when instantiated without a version number.
+   * \p name is recorded unchanged as getInstanceName(), and will not automatically
+   * gain a version number when instantiated without a version number.
    */
   explicit
   DummyStrategy(Forwarder& forwarder, const Name& name = getStrategyName());
 
-  /** \brief after receive Interest trigger
+  /**
+   * \brief After receive Interest trigger.
    *
-   *  If \p interestOutFace is not null, Interest is forwarded to that face and endpoint via send Interest action;
-   *  otherwise, reject pending Interest action is invoked.
+   * If interestOutFace is not null, \p interest is forwarded to that face;
+   * otherwise, rejectPendingInterest() is invoked.
    */
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  beforeSatisfyInterest(const shared_ptr<pit::Entry>& pitEntry,
-                        const FaceEndpoint& ingress, const Data& data) override;
+  afterContentStoreHit(const Data& data, const FaceEndpoint& ingress,
+                       const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntry,
-                       const FaceEndpoint& ingress, const Data& data) override;
+  beforeSatisfyInterest(const Data& data, const FaceEndpoint& ingress,
+                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
-                   const FaceEndpoint& ingress, const Data& data) override;
+  afterReceiveData(const Data& data, const FaceEndpoint& ingress,
+                   const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
+  afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                    const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
   afterNewNextHop(const fib::NextHop& nextHop, const shared_ptr<pit::Entry>& pitEntry) override;
 
 protected:
-  /** \brief register an alias
+  /** \brief Register an alias.
    *  \tparam S subclass of DummyStrategy
    */
   template<typename S>
@@ -99,11 +101,11 @@ protected:
   }
 
 public:
-  int afterReceiveInterest_count;
-  int beforeSatisfyInterest_count;
-  int afterContentStoreHit_count;
-  int afterReceiveData_count;
-  int afterReceiveNack_count;
+  int afterReceiveInterest_count = 0;
+  int afterContentStoreHit_count = 0;
+  int beforeSatisfyInterest_count = 0;
+  int afterReceiveData_count = 0;
+  int afterReceiveNack_count = 0;
 
   // a collection of names of PIT entries that afterNewNextHop() was called on
   std::vector<Name> afterNewNextHopCalls;
@@ -111,7 +113,8 @@ public:
   shared_ptr<Face> interestOutFace;
 };
 
-/** \brief DummyStrategy with specific version
+/**
+ * \brief DummyStrategy with specific version.
  */
 template<uint64_t VERSION>
 class VersionedDummyStrategy : public DummyStrategy
@@ -129,7 +132,7 @@ public:
     return DummyStrategy::getStrategyName(VERSION);
   }
 
-  /** \brief constructor
+  /** \brief Constructor.
    *
    *  The strategy instance name is taken from \p name ; if it does not contain a version component,
    *  \p VERSION will be appended.
@@ -141,7 +144,6 @@ public:
   }
 };
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FW_DUMMY_STRATEGY_HPP

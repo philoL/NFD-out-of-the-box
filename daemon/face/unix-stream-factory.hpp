@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,12 +29,12 @@
 #include "protocol-factory.hpp"
 #include "unix-stream-channel.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-/** \brief Protocol factory for stream-oriented Unix sockets
+/**
+ * \brief Protocol factory for stream-oriented Unix sockets.
  */
-class UnixStreamFactory : public ProtocolFactory
+class UnixStreamFactory final : public ProtocolFactory
 {
 public:
   static const std::string&
@@ -43,34 +43,31 @@ public:
   using ProtocolFactory::ProtocolFactory;
 
   /**
-   * \brief Create stream-oriented Unix channel using specified socket path
+   * \brief Create stream-oriented Unix channel using specified socket path.
    *
    * If this method is called twice with the same path, only one channel
    * will be created.  The second call will just retrieve the existing
    * channel.
    *
-   * \returns always a valid pointer to a UnixStreamChannel object,
+   * \returns Always a valid pointer to a UnixStreamChannel object,
    *          an exception will be thrown if the channel cannot be created.
    */
   shared_ptr<UnixStreamChannel>
-  createChannel(const std::string& unixSocketPath);
+  createChannel(const std::string& socketPath);
 
 private:
-  /** \brief process face_system.unix config section
-   */
   void
   doProcessConfig(OptionalConfigSection configSection,
-                  FaceSystem::ConfigContext& context) override;
+                  FaceSystem::ConfigContext& context) final;
 
   std::vector<shared_ptr<const Channel>>
-  doGetChannels() const override;
+  doGetChannels() const final;
 
 private:
   bool m_wantCongestionMarking = false;
   std::map<unix_stream::Endpoint, shared_ptr<UnixStreamChannel>> m_channels;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_UNIX_STREAM_FACTORY_HPP

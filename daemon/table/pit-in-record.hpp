@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,10 +28,10 @@
 
 #include "pit-face-record.hpp"
 
-namespace nfd {
-namespace pit {
+namespace nfd::pit {
 
-/** \brief Contains information about an Interest from an incoming face
+/**
+ * \brief Contains information about an Interest from an incoming face.
  */
 class InRecord : public FaceRecord
 {
@@ -39,7 +39,7 @@ public:
   using FaceRecord::FaceRecord;
 
   const Interest&
-  getInterest() const
+  getInterest() const noexcept
   {
     BOOST_ASSERT(m_interest != nullptr);
     return *m_interest;
@@ -52,7 +52,6 @@ private:
   shared_ptr<const Interest> m_interest;
 };
 
-} // namespace pit
-} // namespace nfd
+} // namespace nfd::pit
 
 #endif // NFD_DAEMON_TABLE_PIT_IN_RECORD_HPP

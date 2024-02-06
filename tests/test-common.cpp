@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,41 +25,34 @@
 
 #include "tests/test-common.hpp"
 
-#include <ndn-cxx/security/signature-sha256-with-rsa.hpp>
-
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 shared_ptr<Interest>
-makeInterest(const Name& name, bool canBePrefix, optional<time::milliseconds> lifetime,
-             optional<uint32_t> nonce)
+makeInterest(const Name& name, bool canBePrefix, std::optional<time::milliseconds> lifetime,
+             std::optional<Interest::Nonce> nonce)
 {
-  auto interest = make_shared<Interest>(name);
+  auto interest = std::make_shared<Interest>(name);
   interest->setCanBePrefix(canBePrefix);
   if (lifetime) {
     interest->setInterestLifetime(*lifetime);
   }
-  if (nonce) {
-    interest->setNonce(*nonce);
-  }
+  interest->setNonce(nonce);
   return interest;
 }
 
 shared_ptr<Data>
 makeData(const Name& name)
 {
-  auto data = make_shared<Data>(name);
+  auto data = std::make_shared<Data>(name);
   return signData(data);
 }
 
 Data&
 signData(Data& data)
 {
-  ndn::SignatureSha256WithRsa fakeSignature;
-  fakeSignature.setValue(ndn::encoding::makeEmptyBlock(tlv::SignatureValue));
-  data.setSignature(fakeSignature);
+  data.setSignatureInfo(ndn::SignatureInfo(tlv::NullSignature));
+  data.setSignatureValue(std::make_shared<ndn::Buffer>());
   data.wireEncode();
-
   return data;
 }
 
@@ -73,7 +66,7 @@ makeNack(Interest interest, lp::NackReason reason)
 
 ndn::PrefixAnnouncement
 makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
-              optional<ndn::security::ValidityPeriod> validity)
+              std::optional<ndn::security::ValidityPeriod> validity)
 {
   ndn::PrefixAnnouncement pa;
   pa.setAnnouncedName(announcedName);
@@ -83,21 +76,11 @@ makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
 }
 
 ndn::PrefixAnnouncement
-makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
-              std::pair<time::seconds, time::seconds> validityFromNow)
-{
-  auto now = time::system_clock::now();
-  return makePrefixAnn(announcedName, expiration,
-    ndn::security::ValidityPeriod(now + validityFromNow.first, now + validityFromNow.second));
-}
-
-ndn::PrefixAnnouncement
 signPrefixAnn(ndn::PrefixAnnouncement&& pa, ndn::KeyChain& keyChain,
-              const ndn::security::SigningInfo& si, optional<uint64_t> version)
+              const ndn::security::SigningInfo& si, std::optional<uint64_t> version)
 {
   pa.toData(keyChain, si, version);
   return std::move(pa);
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

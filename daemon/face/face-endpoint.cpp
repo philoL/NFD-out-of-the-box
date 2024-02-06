@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,27 +23,34 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "available-commands.hpp"
-#include "cs-module.hpp"
-#include "face-module.hpp"
-#include "rib-module.hpp"
-#include "status.hpp"
-#include "strategy-choice-module.hpp"
+#include "face-endpoint.hpp"
+
+#include <boost/hana/functional/overload.hpp>
 
 namespace nfd {
-namespace tools {
-namespace nfdc {
 
-void
-registerCommands(CommandParser& parser)
+FaceEndpoint::FaceEndpoint(Face& face, const EndpointId& endpoint)
+  : face(face)
+  , endpoint(endpoint)
 {
-  registerStatusCommands(parser);
-  FaceModule::registerCommands(parser);
-  RibModule::registerCommands(parser);
-  CsModule::registerCommands(parser);
-  StrategyChoiceModule::registerCommands(parser);
 }
 
-} // namespace nfdc
-} // namespace tools
+void
+FaceEndpoint::print(std::ostream& os) const
+{
+  std::visit(boost::hana::overload(
+    [&] (std::monostate) {
+      os << face.getId();
+    },
+    [&] (const ethernet::Address& ep) {
+      os << '(' << face.getId() << ", " << ep << ')';
+    },
+    [&] (const udp::Endpoint& ep) {
+      os << '(' << face.getId() << ", " << ep << ')';
+    },
+    [&] (const tcp::Endpoint& ep) {
+      os << '(' << face.getId() << ", " << ep << ')';
+    }), endpoint);
+}
+
 } // namespace nfd

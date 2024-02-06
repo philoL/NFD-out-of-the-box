@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,13 +24,14 @@
  */
 
 #include "lp-reassembler.hpp"
-#include "link-service.hpp"
 #include "common/global.hpp"
+#include "link-service.hpp"
+
+#include <ndn-cxx/lp/fields.hpp>
 
 #include <numeric>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(LpReassembler);
 
@@ -41,11 +42,9 @@ LpReassembler::LpReassembler(const LpReassembler::Options& options, const LinkSe
 }
 
 std::tuple<bool, Block, lp::Packet>
-LpReassembler::receiveFragment(EndpointId remoteEndpoint, const lp::Packet& packet)
+LpReassembler::receiveFragment(const EndpointId& remoteEndpoint, const lp::Packet& packet)
 {
   BOOST_ASSERT(packet.has<lp::FragmentField>());
-
-  static auto FALSE_RETURN = std::make_tuple(false, Block(), lp::Packet());
 
   // read and check FragIndex and FragCount
   uint64_t fragIndex = 0;
@@ -59,29 +58,29 @@ LpReassembler::receiveFragment(EndpointId remoteEndpoint, const lp::Packet& pack
 
   if (fragIndex >= fragCount) {
     NFD_LOG_FACE_WARN("reassembly error, FragIndex>=FragCount: DROP");
-    return FALSE_RETURN;
+    return {false, {}, {}};
   }
 
   if (fragCount > m_options.nMaxFragments) {
     NFD_LOG_FACE_WARN("reassembly error, FragCount over limit: DROP");
-    return FALSE_RETURN;
+    return {false, {}, {}};
   }
 
   // check for fast path
   if (fragIndex == 0 && fragCount == 1) {
-    ndn::Buffer::const_iterator fragBegin, fragEnd;
-    std::tie(fragBegin, fragEnd) = packet.get<lp::FragmentField>();
-    Block netPkt(&*fragBegin, std::distance(fragBegin, fragEnd));
-    return std::make_tuple(true, netPkt, packet);
+    auto frag = packet.get<lp::FragmentField>();
+    Block netPkt({frag.first, frag.second});
+    return {true, netPkt, packet};
   }
 
   // check Sequence and compute message identifier
   if (!packet.has<lp::SequenceField>()) {
     NFD_LOG_FACE_WARN("reassembly error, Sequence missing: DROP");
-    return FALSE_RETURN;
+    return {false, {}, {}};
   }
+
   lp::Sequence messageIdentifier = packet.get<lp::SequenceField>() - fragIndex;
-  Key key = std::make_tuple(remoteEndpoint, messageIdentifier);
+  Key key(remoteEndpoint, messageIdentifier);
 
   // add to PartialPacket
   PartialPacket& pp = m_partialPackets[key];
@@ -93,13 +92,13 @@ LpReassembler::receiveFragment(EndpointId remoteEndpoint, const lp::Packet& pack
   else {
     if (fragCount != pp.fragCount) {
       NFD_LOG_FACE_WARN("reassembly error, FragCount changed: DROP");
-      return FALSE_RETURN;
+      return {false, {}, {}};
     }
   }
 
   if (pp.fragments[fragIndex].has<lp::SequenceField>()) {
     NFD_LOG_FACE_TRACE("fragment already received: DROP");
-    return FALSE_RETURN;
+    return {false, {}, {}};
   }
 
   pp.fragments[fragIndex] = packet;
@@ -110,13 +109,13 @@ LpReassembler::receiveFragment(EndpointId remoteEndpoint, const lp::Packet& pack
     Block reassembled = doReassembly(key);
     lp::Packet firstFrag(std::move(pp.fragments[0]));
     m_partialPackets.erase(key);
-    return std::make_tuple(true, reassembled, firstFrag);
+    return {true, reassembled, firstFrag};
   }
 
   // set drop timer
   pp.dropTimer = getScheduler().schedule(m_options.reassemblyTimeout, [=] { timeoutPartialPacket(key); });
 
-  return FALSE_RETURN;
+  return {false, {}, {}};
 }
 
 Block
@@ -126,21 +125,17 @@ LpReassembler::doReassembly(const Key& key)
 
   size_t payloadSize = std::accumulate(pp.fragments.begin(), pp.fragments.end(), 0U,
     [&] (size_t sum, const lp::Packet& pkt) -> size_t {
-      ndn::Buffer::const_iterator fragBegin, fragEnd;
-      std::tie(fragBegin, fragEnd) = pkt.get<lp::FragmentField>();
+      auto [fragBegin, fragEnd] = pkt.get<lp::FragmentField>();
       return sum + std::distance(fragBegin, fragEnd);
     });
 
   ndn::Buffer fragBuffer(payloadSize);
   auto it = fragBuffer.begin();
-
   for (const lp::Packet& frag : pp.fragments) {
-    ndn::Buffer::const_iterator fragBegin, fragEnd;
-    std::tie(fragBegin, fragEnd) = frag.get<lp::FragmentField>();
+    auto [fragBegin, fragEnd] = frag.get<lp::FragmentField>();
     it = std::copy(fragBegin, fragEnd, it);
   }
-
-  return Block(&*(fragBuffer.cbegin()), std::distance(fragBuffer.cbegin(), fragBuffer.cend()));
+  return Block(fragBuffer);
 }
 
 void
@@ -167,5 +162,4 @@ operator<<(std::ostream& os, const FaceLogHelper<LpReassembler>& flh)
   return os;
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

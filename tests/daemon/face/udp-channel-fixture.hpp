@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,26 +31,30 @@
 
 #include "channel-fixture.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include <boost/asio/defer.hpp>
+
+namespace nfd::tests {
+
+using face::UdpChannel;
 
 class UdpChannelFixture : public ChannelFixture<UdpChannel, udp::Endpoint>
 {
 protected:
-  unique_ptr<UdpChannel>
-  makeChannel(const boost::asio::ip::address& addr, uint16_t port = 0) final
+  shared_ptr<UdpChannel>
+  makeChannel(const boost::asio::ip::address& addr, uint16_t port = 0,
+              std::optional<size_t> mtu = std::nullopt) final
   {
     if (port == 0)
       port = getNextPort();
 
-    return make_unique<UdpChannel>(udp::Endpoint(addr, port), 2_s, false);
+    return std::make_shared<UdpChannel>(udp::Endpoint(addr, port), 2_s, false,
+                                        mtu.value_or(ndn::MAX_NDN_PACKET_SIZE));
   }
 
   void
   connect(UdpChannel& channel) final
   {
-    g_io.post([&] {
+    boost::asio::defer(g_io, [&] {
       channel.connect(listenerEp, {},
         [this] (const shared_ptr<Face>& newFace) {
           BOOST_REQUIRE(newFace != nullptr);
@@ -67,8 +71,6 @@ protected:
   std::vector<shared_ptr<Face>> clientFaces;
 };
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FACE_UDP_CHANNEL_FIXTURE_HPP

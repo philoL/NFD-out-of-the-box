@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,53 +30,54 @@
 #include "command-parser.hpp"
 #include "format-helpers.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/face-status.hpp>
+
+namespace nfd::tools::nfdc {
 
 using ndn::nfd::FaceStatus;
 
-/** \brief provides access to NFD face management
- *  \sa https://redmine.named-data.net/projects/nfd/wiki/FaceMgmt
+/**
+ * \brief Provides access to NFD face management.
+ * \sa https://redmine.named-data.net/projects/nfd/wiki/FaceMgmt
  */
-class FaceModule : public Module, noncopyable
+class FaceModule : public Module, boost::noncopyable
 {
 public:
-  /** \brief register 'face list', 'face show', 'face create', 'face destroy' commands
+  /** \brief Register 'face list', 'face show', 'face create', 'face destroy' commands.
    */
   static void
   registerCommands(CommandParser& parser);
 
-  /** \brief the 'face list' command
+  /** \brief The 'face list' command.
    */
   static void
   list(ExecuteContext& ctx);
 
-  /** \brief the 'face show' command
+  /** \brief The 'face show' command.
    */
   static void
   show(ExecuteContext& ctx);
 
-  /** \brief the 'face create' command
+  /** \brief The 'face create' command.
    */
   static void
   create(ExecuteContext& ctx);
 
-  /** \brief the 'face destroy' command
+  /** \brief The 'face destroy' command.
    */
   static void
   destroy(ExecuteContext& ctx);
 
   void
-  fetchStatus(Controller& controller,
+  fetchStatus(ndn::nfd::Controller& controller,
               const std::function<void()>& onSuccess,
-              const Controller::DatasetFailCallback& onFailure,
+              const ndn::nfd::DatasetFailureCallback& onFailure,
               const CommandOptions& options) override;
 
   void
   formatStatusXml(std::ostream& os) const override;
 
-  /** \brief format a single status item as XML
+  /** \brief Format a single status item as XML.
    *  \param os output stream
    *  \param item status item
    */
@@ -86,7 +87,7 @@ public:
   void
   formatStatusText(std::ostream& os) const override;
 
-  /** \brief format a single status item as text
+  /** \brief Format a single status item as text.
    *  \param os output stream
    *  \param item status item
    *  \param wantMultiLine use multi-line style
@@ -94,7 +95,15 @@ public:
   static void
   formatItemText(std::ostream& os, const FaceStatus& item, bool wantMultiLine);
 
-  /** \brief print face response parameters to specified ostream
+  /** \brief Print face action success message to specified ostream.
+   *  \param os output stream
+   *  \param actionSummary description of action taken
+   *  \param resp response control parameters to print
+   */
+  static void
+  printSuccess(std::ostream& os, const std::string& actionSummary, const ControlParameters& resp);
+
+  /** \brief Print face response parameters to specified ostream.
    *  \param os output stream
    *  \param ia ItemAttributes used to format output
    *  \param resp response control parameters to print
@@ -106,8 +115,6 @@ private:
   std::vector<FaceStatus> m_status;
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_FACE_MODULE_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,19 +28,19 @@
 
 #include "core/common.hpp"
 
-namespace nfd {
-
-namespace fw {
+namespace nfd::fw {
 class Strategy;
-} // namespace fw
+} // namespace nfd::fw
 
-namespace name_tree {
+namespace nfd::name_tree {
 class Entry;
-} // namespace name_tree
+} // namespace nfd::name_tree
 
-namespace strategy_choice {
+namespace nfd::strategy_choice {
 
-/** \brief Represents a Strategy Choice entry
+/**
+ * \brief Represents an entry in the %Strategy %Choice table.
+ * \sa StrategyChoice
  */
 class Entry : noncopyable
 {
@@ -80,10 +80,10 @@ private:
   unique_ptr<fw::Strategy> m_strategy;
 
   name_tree::Entry* m_nameTreeEntry = nullptr;
-  friend class name_tree::Entry;
+
+  friend ::nfd::name_tree::Entry;
 };
 
-} // namespace strategy_choice
-} // namespace nfd
+} // namespace nfd::strategy_choice
 
 #endif // NFD_DAEMON_TABLE_STRATEGY_CHOICE_ENTRY_HPP

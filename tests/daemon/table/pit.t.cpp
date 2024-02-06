@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,13 +27,14 @@
 
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
-#include "tests/daemon/face/dummy-face.hpp"
 
-namespace nfd {
-namespace pit {
-namespace tests {
+#include <ndn-cxx/util/concepts.hpp>
 
-using namespace nfd::tests;
+namespace nfd::tests {
+
+using namespace nfd::pit;
+
+NDN_CXX_ASSERT_FORWARD_ITERATOR(Pit::const_iterator);
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestPit, GlobalIoFixture)
@@ -70,7 +71,7 @@ BOOST_AUTO_TEST_CASE(Insert)
   bool isNew = false;
 
   // base
-  auto interestA = makeInterest(name1, false, nullopt, 2148);
+  auto interestA = makeInterest(name1, false, std::nullopt, 2148);
   std::tie(entry, isNew) = pit.insert(*interestA);
   BOOST_CHECK_EQUAL(isNew, true);
   BOOST_CHECK_EQUAL(pit.size(), 1);
@@ -336,14 +337,12 @@ BOOST_AUTO_TEST_CASE(Iterator)
   for (const auto& pitEntry : pit) {
     actual.insert(&pitEntry.getInterest());
   }
-  std::set<const Interest*> expected = {interestA.get(), interestABC1.get(),
-                                        interestABC2.get(), interestD.get()};
-  BOOST_CHECK_EQUAL_COLLECTIONS(actual.begin(), actual.end(), expected.begin(), expected.end());
+  const auto expected = std::set{interestA.get(), interestABC1.get(),
+                                 interestABC2.get(), interestD.get()};
+  BOOST_TEST(actual == expected, boost::test_tools::per_element());
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestPit
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace pit
-} // namespace nfd
+} // namespace nfd::tests

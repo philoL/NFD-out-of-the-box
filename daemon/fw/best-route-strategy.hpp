@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,35 +27,31 @@
 #define NFD_DAEMON_FW_BEST_ROUTE_STRATEGY_HPP
 
 #include "strategy.hpp"
+#include "process-nack-traits.hpp"
+#include "retx-suppression-exponential.hpp"
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
-class BestRouteStrategyBase : public Strategy
-{
-public:
-  void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
-                       const shared_ptr<pit::Entry>& pitEntry) override;
-
-protected:
-  BestRouteStrategyBase(Forwarder& forwarder);
-};
-
-/** \brief Best Route strategy version 1
+/**
+ * \brief "Best route" forwarding strategy.
  *
- *  This strategy forwards a new Interest to the lowest-cost nexthop
- *  that is not same as the downstream, and does not violate scope.
- *  Subsequent similar Interests or consumer retransmissions are suppressed
- *  until after InterestLifetime expiry.
+ * This strategy forwards a new Interest to the lowest-cost nexthop (except downstream).
+ * After that, if consumer retransmits the Interest (and is not suppressed according to
+ * exponential backoff algorithm), the strategy forwards the Interest again to
+ * the lowest-cost nexthop (except downstream) that is not previously used.
+ * If all nexthops have been used, the strategy starts over with the first nexthop.
  *
- *  \note This strategy is superceded by Best Route strategy version 2,
- *        which allows consumer retransmissions. This version is kept for
- *        comparison purposes and is not recommended for general usage.
+ * This strategy returns Nack to all downstreams with reason NoRoute
+ * if there is no usable nexthop, which may be caused by:
+ *  (a) the FIB entry contains no nexthop;
+ *  (b) the FIB nexthop happens to be the sole downstream;
+ *  (c) the FIB nexthops violate scope.
  *
- *  \note This strategy is not EndpointId-aware.
+ * This strategy returns Nack to all downstreams if all upstreams have returned Nacks.
+ * The reason of the sent Nack equals the least severe reason among received Nacks.
  */
-class BestRouteStrategy : public BestRouteStrategyBase
+class BestRouteStrategy : public Strategy
+                        , public ProcessNackTraits<BestRouteStrategy>
 {
 public:
   explicit
@@ -63,9 +59,22 @@ public:
 
   static const Name&
   getStrategyName();
+
+public: // triggers
+  void
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
+                       const shared_ptr<pit::Entry>& pitEntry) override;
+
+  void
+  afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
+                   const shared_ptr<pit::Entry>& pitEntry) override;
+
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+  std::unique_ptr<RetxSuppressionExponential> m_retxSuppression;
+
+  friend ProcessNackTraits<BestRouteStrategy>;
 };
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
 #endif // NFD_DAEMON_FW_BEST_ROUTE_STRATEGY_HPP

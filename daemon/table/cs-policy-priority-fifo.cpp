@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,11 +27,8 @@
 #include "cs.hpp"
 #include "common/global.hpp"
 
-namespace nfd {
-namespace cs {
-namespace priority_fifo {
+namespace nfd::cs::priority_fifo {
 
-const std::string PriorityFifoPolicy::POLICY_NAME = "priority_fifo";
 NFD_REGISTER_CS_POLICY(PriorityFifoPolicy);
 
 PriorityFifoPolicy::PriorityFifoPolicy()
@@ -158,6 +155,4 @@ PriorityFifoPolicy::moveToStaleQueue(EntryRef i)
   m_entryInfoMap[i] = entryInfo;
 }
 
-} // namespace priority_fifo
-} // namespace cs
-} // namespace nfd
+} // namespace nfd::cs::priority_fifo

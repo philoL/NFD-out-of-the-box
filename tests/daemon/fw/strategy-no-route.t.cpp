@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,15 +24,14 @@
  */
 
 /** \file
- *  This test suite checks that a strategy returns Nack-NoRoute
- *  when there is no usable FIB nexthop.
+ *  This test suite checks that a strategy returns Nack-NoRoute when there are
+ *  no usable FIB nexthops.
  */
 
-// Strategies returning Nack-NoRoute when there is no usable FIB nexthop,
+// Strategies returning Nack-NoRoute when there are no usable FIB nexthops,
 // sorted alphabetically.
 #include "fw/asf-strategy.hpp"
-#include "fw/best-route-strategy2.hpp"
-#include "fw/multicast-strategy.hpp"
+#include "fw/best-route-strategy.hpp"
 #include "fw/random-strategy.hpp"
 
 #include "tests/test-common.hpp"
@@ -40,12 +39,11 @@
 #include "choose-strategy.hpp"
 #include "strategy-tester.hpp"
 
-#include <boost/mpl/copy_if.hpp>
-#include <boost/mpl/vector.hpp>
+#include <boost/mp11/list.hpp>
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
+
+using namespace nfd::fw;
 
 template<typename S>
 class StrategyNoRouteFixture : public GlobalIoTimeFixture
@@ -80,25 +78,16 @@ public:
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_AUTO_TEST_SUITE(TestStrategyNoRoute)
 
-template<typename S, typename C>
-class Test
-{
-public:
-  using Strategy = S;
-  using Case = C;
-};
-
 template<typename S>
-class EmptyNextHopList
+struct EmptyNextHopList
 {
-public:
-  Name
+  static Name
   getInterestName()
   {
     return "/P";
   }
 
-  void
+  static void
   insertFibEntry(StrategyNoRouteFixture<S>* fixture)
   {
     fixture->fib.insert(Name());
@@ -106,16 +95,15 @@ public:
 };
 
 template<typename S>
-class NextHopIsDownstream
+struct NextHopIsDownstream
 {
-public:
-  Name
+  static Name
   getInterestName()
   {
     return "/P";
   }
 
-  void
+  static void
   insertFibEntry(StrategyNoRouteFixture<S>* fixture)
   {
     fib::Entry* entry = fixture->fib.insert(Name()).first;
@@ -124,16 +112,15 @@ public:
 };
 
 template<typename S>
-class NextHopViolatesScope
+struct NextHopViolatesScope
 {
-public:
-  Name
+  static Name
   getInterestName()
   {
     return "/localhop/P";
   }
 
-  void
+  static void
   insertFibEntry(StrategyNoRouteFixture<S>* fixture)
   {
     fib::Entry* entry = fixture->fib.insert("/localhop").first;
@@ -142,36 +129,32 @@ public:
   }
 };
 
-using Tests = boost::mpl::vector<
-  Test<AsfStrategy, EmptyNextHopList<AsfStrategy>>,
-  Test<AsfStrategy, NextHopIsDownstream<AsfStrategy>>,
-  Test<AsfStrategy, NextHopViolatesScope<AsfStrategy>>,
+using Tests = boost::mp11::mp_list<
+  boost::mp11::mp_list<AsfStrategy, EmptyNextHopList<AsfStrategy>>,
+  boost::mp11::mp_list<AsfStrategy, NextHopIsDownstream<AsfStrategy>>,
+  boost::mp11::mp_list<AsfStrategy, NextHopViolatesScope<AsfStrategy>>,
 
-  Test<BestRouteStrategy2, EmptyNextHopList<BestRouteStrategy2>>,
-  Test<BestRouteStrategy2, NextHopIsDownstream<BestRouteStrategy2>>,
-  Test<BestRouteStrategy2, NextHopViolatesScope<BestRouteStrategy2>>,
+  boost::mp11::mp_list<BestRouteStrategy, EmptyNextHopList<BestRouteStrategy>>,
+  boost::mp11::mp_list<BestRouteStrategy, NextHopIsDownstream<BestRouteStrategy>>,
+  boost::mp11::mp_list<BestRouteStrategy, NextHopViolatesScope<BestRouteStrategy>>,
 
-  Test<MulticastStrategy, EmptyNextHopList<MulticastStrategy>>,
-  Test<MulticastStrategy, NextHopIsDownstream<MulticastStrategy>>,
-  Test<MulticastStrategy, NextHopViolatesScope<MulticastStrategy>>,
-
-  Test<RandomStrategy, EmptyNextHopList<RandomStrategy>>,
-  Test<RandomStrategy, NextHopIsDownstream<RandomStrategy>>,
-  Test<RandomStrategy, NextHopViolatesScope<RandomStrategy>>
+  boost::mp11::mp_list<RandomStrategy, EmptyNextHopList<RandomStrategy>>,
+  boost::mp11::mp_list<RandomStrategy, NextHopIsDownstream<RandomStrategy>>,
+  boost::mp11::mp_list<RandomStrategy, NextHopViolatesScope<RandomStrategy>>
 >;
 
-BOOST_FIXTURE_TEST_CASE_TEMPLATE(IncomingInterest, T, Tests,
-                                 StrategyNoRouteFixture<typename T::Strategy>)
+BOOST_FIXTURE_TEST_CASE_TEMPLATE(IncomingInterest,
+                                 T, Tests, StrategyNoRouteFixture<boost::mp11::mp_first<T>>)
 {
-  typename T::Case scenario;
-  scenario.insertFibEntry(this);
+  using Scenario = boost::mp11::mp_second<T>;
+  Scenario::insertFibEntry(this);
 
-  auto interest = makeInterest(scenario.getInterestName());
+  auto interest = makeInterest(Scenario::getInterestName());
   auto pitEntry = this->pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*this->face1, *interest);
 
   auto f = [&] {
-    this->strategy.afterReceiveInterest(FaceEndpoint(*this->face1, 0), *interest, pitEntry);
+    this->strategy.afterReceiveInterest(*interest, FaceEndpoint(*this->face1), pitEntry);
   };
   BOOST_REQUIRE(this->strategy.waitForAction(f, this->limitedIo, 2));
 
@@ -189,6 +172,4 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(IncomingInterest, T, Tests,
 BOOST_AUTO_TEST_SUITE_END() // TestStrategyNoRoute
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

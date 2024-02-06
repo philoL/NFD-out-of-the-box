@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -40,7 +40,7 @@ class ForwarderCounters;
  * \brief Implements the CS Management of NFD Management Protocol.
  * \sa https://redmine.named-data.net/projects/nfd/wiki/CsMgmt
  */
-class CsManager : public ManagerBase
+class CsManager final : public ManagerBase
 {
 public:
   CsManager(cs::Cs& cs, const ForwarderCounters& fwCounters,
@@ -62,8 +62,7 @@ private:
   /** \brief Serve CS information dataset.
    */
   void
-  serveInfo(const Name& topPrefix, const Interest& interest,
-            ndn::mgmt::StatusDatasetContext& context) const;
+  serveInfo(ndn::mgmt::StatusDatasetContext& context) const;
 
 public:
   static constexpr size_t ERASE_LIMIT = 256;

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,10 +31,9 @@
 #include "readvertised-route.hpp"
 #include "rib/rib.hpp"
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-/** \brief readvertise a subset of routes to a destination according to a policy
+/** \brief Readvertise a subset of routes to a destination according to a policy.
  *
  *  The Readvertise class allows RIB routes to be readvertised to a destination such as a routing
  *  protocol daemon or another NFD-RIB. It monitors the RIB for route additions and removals,
@@ -68,24 +67,19 @@ private:
   withdraw(ReadvertisedRouteContainer::iterator rrIt);
 
 private:
-  /** \brief maps from RIB route to readvertised route derived from RIB route(s)
-   */
-  using RouteRrIndex = std::map<RibRouteRef, ReadvertisedRouteContainer::iterator>;
-
-  static const time::milliseconds RETRY_DELAY_MIN;
-  static const time::milliseconds RETRY_DELAY_MAX;
-
   unique_ptr<ReadvertisePolicy> m_policy;
   unique_ptr<ReadvertiseDestination> m_destination;
 
   ReadvertisedRouteContainer m_rrs;
-  RouteRrIndex m_routeToRr;
+  /**
+   * \brief Map from RIB route to readvertised route derived from RIB route(s).
+   */
+  std::map<RibRouteRef, ReadvertisedRouteContainer::iterator> m_routeToRr;
 
   signal::ScopedConnection m_addRouteConn;
   signal::ScopedConnection m_removeRouteConn;
 };
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_READVERTISE_READVERTISE_HPP

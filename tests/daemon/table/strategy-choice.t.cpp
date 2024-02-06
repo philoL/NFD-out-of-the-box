@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,8 +29,11 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/fw/dummy-strategy.hpp"
 
-namespace nfd {
-namespace tests {
+#include <ndn-cxx/util/concepts.hpp>
+
+namespace nfd::tests {
+
+NDN_CXX_ASSERT_FORWARD_ITERATOR(StrategyChoice::const_iterator);
 
 class StrategyChoiceFixture : public GlobalIoFixture
 {
@@ -41,21 +44,19 @@ protected:
     DummyStrategy::registerAs(strategyNameQ);
   }
 
-  /** \brief insert StrategyChoice entry at \p prefix for \p instanceName
+  /** \brief Insert StrategyChoice entry at \p prefix for \p instanceName.
    *  \return constructed instance name
    */
   Name
   insertAndGet(const Name& prefix, const Name& instanceName)
   {
     BOOST_REQUIRE(sc.insert(prefix, instanceName));
-    bool isFound;
-    Name foundName;
-    std::tie(isFound, foundName) = sc.get(prefix);
+    auto [isFound, foundName] = sc.get(prefix);
     BOOST_REQUIRE(isFound);
     return foundName;
   }
 
-  /** \brief determine whether the effective strategy type at \p prefix is \p S
+  /** \brief Determine whether the effective strategy type at \p prefix is \p S.
    *  \tparam S expected strategy type
    */
   template<typename S>
@@ -78,8 +79,8 @@ protected:
   Forwarder forwarder{faceTable};
   StrategyChoice& sc{forwarder.getStrategyChoice()};
 
-  const Name strategyNameP = "/strategy-choice-P/%FD%00";
-  const Name strategyNameQ = "/strategy-choice-Q/%FD%00";
+  const Name strategyNameP = Name("/strategy-choice-P").appendVersion(0);
+  const Name strategyNameQ = Name("/strategy-choice-Q").appendVersion(0);
 };
 
 BOOST_AUTO_TEST_SUITE(Table)
@@ -87,13 +88,13 @@ BOOST_FIXTURE_TEST_SUITE(TestStrategyChoice, StrategyChoiceFixture)
 
 BOOST_AUTO_TEST_CASE(Versioning)
 {
-  const Name strategyNameV("/strategy-choice-V");
-  const Name strategyNameV0("/strategy-choice-V/%FD%00");
-  const Name strategyNameV1("/strategy-choice-V/%FD%01");
-  const Name strategyNameV2("/strategy-choice-V/%FD%02");
-  const Name strategyNameV3("/strategy-choice-V/%FD%03");
-  const Name strategyNameV4("/strategy-choice-V/%FD%04");
-  const Name strategyNameV5("/strategy-choice-V/%FD%05");
+  const auto strategyNameV = Name("/strategy-choice-V");
+  const auto strategyNameV0 = Name("/strategy-choice-V").appendVersion(0);
+  const auto strategyNameV1 = Name("/strategy-choice-V").appendVersion(1);
+  const auto strategyNameV2 = Name("/strategy-choice-V").appendVersion(2);
+  const auto strategyNameV3 = Name("/strategy-choice-V").appendVersion(3);
+  const auto strategyNameV4 = Name("/strategy-choice-V").appendVersion(4);
+  const auto strategyNameV5 = Name("/strategy-choice-V").appendVersion(5);
 
   VersionedDummyStrategy<1>::registerAs(strategyNameV1);
   VersionedDummyStrategy<3>::registerAs(strategyNameV3);
@@ -171,7 +172,7 @@ BOOST_AUTO_TEST_CASE(Get)
 
 BOOST_AUTO_TEST_CASE(FindEffectiveStrategy)
 {
-  const Name strategyNameZ("/strategy-choice-Z/%FD%00"); // unregistered strategyName
+  const auto strategyNameZ = Name("/strategy-choice-Z").appendVersion(0); // unregistered strategyName
 
   BOOST_CHECK(sc.insert("/", strategyNameP));
   // { '/'=>P }
@@ -337,5 +338,4 @@ BOOST_AUTO_TEST_CASE(ClearStrategyInfo)
 BOOST_AUTO_TEST_SUITE_END() // TestStrategyChoice
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,17 +34,12 @@
 
 #include <type_traits>
 
-namespace nfd {
-namespace face {
-namespace tests {
-
-using namespace nfd::tests;
+namespace nfd::tests {
 
 template<class ChannelT, class EndpointT>
 class ChannelFixture : public GlobalIoFixture
 {
-  static_assert(std::is_base_of<Channel, ChannelT>::value,
-                "ChannelFixture must be instantiated with a type derived from Channel");
+  static_assert(std::is_base_of_v<face::Channel, ChannelT>);
 
 public:
   virtual
@@ -63,25 +58,26 @@ protected:
     return m_nextPort++;
   }
 
-  virtual unique_ptr<ChannelT>
+  virtual shared_ptr<ChannelT>
   makeChannel()
   {
     BOOST_FAIL("Unimplemented");
     return nullptr;
   }
 
-  virtual unique_ptr<ChannelT>
-  makeChannel(const boost::asio::ip::address&, uint16_t port = 0)
+  virtual shared_ptr<ChannelT>
+  makeChannel(const boost::asio::ip::address&, uint16_t port = 0,
+              std::optional<size_t> mtu = std::nullopt)
   {
     BOOST_FAIL("Unimplemented");
     return nullptr;
   }
 
   void
-  listen(const boost::asio::ip::address& addr)
+  listen(const boost::asio::ip::address& addr, std::optional<size_t> mtu = std::nullopt)
   {
     listenerEp = EndpointT{addr, 7030};
-    listenerChannel = makeChannel(addr, 7030);
+    listenerChannel = makeChannel(addr, 7030, mtu);
     listenerChannel->listen(
       [this] (const shared_ptr<Face>& newFace) {
         BOOST_REQUIRE(newFace != nullptr);
@@ -101,15 +97,13 @@ protected:
 protected:
   LimitedIo limitedIo;
   EndpointT listenerEp;
-  unique_ptr<ChannelT> listenerChannel;
+  shared_ptr<ChannelT> listenerChannel;
   std::vector<shared_ptr<Face>> listenerFaces;
 
 private:
   uint16_t m_nextPort = 7050;
 };
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FACE_CHANNEL_FIXTURE_HPP

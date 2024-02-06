@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2016,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,11 +24,11 @@
  */
 
 #include "unsolicited-data-policy.hpp"
+
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/algorithm/copy.hpp>
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
 std::ostream&
 operator<<(std::ostream& os, UnsolicitedDataDecision d)
@@ -66,20 +66,18 @@ UnsolicitedDataPolicy::getPolicyNames()
   return policyNames;
 }
 
-const std::string DropAllUnsolicitedDataPolicy::POLICY_NAME("drop-all");
 NFD_REGISTER_UNSOLICITED_DATA_POLICY(DropAllUnsolicitedDataPolicy);
 
 UnsolicitedDataDecision
-DropAllUnsolicitedDataPolicy::decide(const Face& inFace, const Data& data) const
+DropAllUnsolicitedDataPolicy::decide(const Face&, const Data&) const
 {
   return UnsolicitedDataDecision::DROP;
 }
 
-const std::string AdmitLocalUnsolicitedDataPolicy::POLICY_NAME("admit-local");
 NFD_REGISTER_UNSOLICITED_DATA_POLICY(AdmitLocalUnsolicitedDataPolicy);
 
 UnsolicitedDataDecision
-AdmitLocalUnsolicitedDataPolicy::decide(const Face& inFace, const Data& data) const
+AdmitLocalUnsolicitedDataPolicy::decide(const Face& inFace, const Data&) const
 {
   if (inFace.getScope() == ndn::nfd::FACE_SCOPE_LOCAL) {
     return UnsolicitedDataDecision::CACHE;
@@ -87,11 +85,10 @@ AdmitLocalUnsolicitedDataPolicy::decide(const Face& inFace, const Data& data) co
   return UnsolicitedDataDecision::DROP;
 }
 
-const std::string AdmitNetworkUnsolicitedDataPolicy::POLICY_NAME("admit-network");
 NFD_REGISTER_UNSOLICITED_DATA_POLICY(AdmitNetworkUnsolicitedDataPolicy);
 
 UnsolicitedDataDecision
-AdmitNetworkUnsolicitedDataPolicy::decide(const Face& inFace, const Data& data) const
+AdmitNetworkUnsolicitedDataPolicy::decide(const Face& inFace, const Data&) const
 {
   if (inFace.getScope() == ndn::nfd::FACE_SCOPE_NON_LOCAL) {
     return UnsolicitedDataDecision::CACHE;
@@ -99,14 +96,12 @@ AdmitNetworkUnsolicitedDataPolicy::decide(const Face& inFace, const Data& data) 
   return UnsolicitedDataDecision::DROP;
 }
 
-const std::string AdmitAllUnsolicitedDataPolicy::POLICY_NAME("admit-all");
 NFD_REGISTER_UNSOLICITED_DATA_POLICY(AdmitAllUnsolicitedDataPolicy);
 
 UnsolicitedDataDecision
-AdmitAllUnsolicitedDataPolicy::decide(const Face& inFace, const Data& data) const
+AdmitAllUnsolicitedDataPolicy::decide(const Face&, const Data&) const
 {
   return UnsolicitedDataDecision::CACHE;
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

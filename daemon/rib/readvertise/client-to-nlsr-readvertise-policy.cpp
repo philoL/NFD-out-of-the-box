@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,17 +25,16 @@
 
 #include "client-to-nlsr-readvertise-policy.hpp"
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-optional<ReadvertiseAction>
+std::optional<ReadvertiseAction>
 ClientToNlsrReadvertisePolicy::handleNewRoute(const RibRouteRef& ribRoute) const
 {
   if (ribRoute.route->origin == ndn::nfd::ROUTE_ORIGIN_CLIENT) {
     return ReadvertiseAction{ribRoute.entry->getName(), ndn::security::SigningInfo()};
   }
   else {
-    return nullopt;
+    return std::nullopt;
   }
 }
 
@@ -45,5 +44,4 @@ ClientToNlsrReadvertisePolicy::getRefreshInterval() const
   return 1_h;
 }
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,15 +30,7 @@
 
 #include "face/null-transport.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
-
-struct TxPacket
-{
-  Block packet;
-  EndpointId endpoint;
-};
+namespace nfd::tests {
 
 /** \brief Dummy Transport type used in unit tests.
  *
@@ -47,7 +39,7 @@ struct TxPacket
  *  All persistency changes are recorded in `persistencyHistory`.
  */
 template<bool CAN_CHANGE_PERSISTENCY>
-class DummyTransportBase : public NullTransport
+class DummyTransportBase : public face::NullTransport
 {
 public:
   explicit
@@ -56,8 +48,8 @@ public:
                      ndn::nfd::FaceScope scope = ndn::nfd::FACE_SCOPE_NON_LOCAL,
                      ndn::nfd::FacePersistency persistency = ndn::nfd::FACE_PERSISTENCY_PERSISTENT,
                      ndn::nfd::LinkType linkType = ndn::nfd::LINK_TYPE_POINT_TO_POINT,
-                     ssize_t mtu = MTU_UNLIMITED,
-                     ssize_t sendQueueCapacity = QUEUE_UNSUPPORTED)
+                     ssize_t mtu = face::MTU_UNLIMITED,
+                     ssize_t sendQueueCapacity = face::QUEUE_UNSUPPORTED)
     : NullTransport(FaceUri(localUri), FaceUri(remoteUri), scope, persistency)
   {
     this->setLinkType(linkType);
@@ -101,14 +93,14 @@ protected:
 
 private:
   void
-  doSend(const Block& packet, const EndpointId& endpoint) override
+  doSend(const Block& packet) override
   {
-    sentPackets.push_back({packet, endpoint});
+    sentPackets.push_back(packet);
   }
 
 public:
   std::vector<ndn::nfd::FacePersistency> persistencyHistory;
-  std::vector<TxPacket> sentPackets;
+  std::vector<Block> sentPackets;
 
 private:
   ssize_t m_sendQueueLength = 0;
@@ -116,8 +108,6 @@ private:
 
 using DummyTransport = DummyTransportBase<true>;
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FACE_DUMMY_TRANSPORT_HPP

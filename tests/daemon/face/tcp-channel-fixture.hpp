@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,9 +31,11 @@
 
 #include "channel-fixture.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include <boost/asio/defer.hpp>
+
+namespace nfd::tests {
+
+using face::TcpChannel;
 
 class TcpChannelFixture : public ChannelFixture<TcpChannel, tcp::Endpoint>
 {
@@ -43,20 +45,21 @@ protected:
     local.assign({{"subnet", "127.0.0.0/8"}, {"subnet", "::1/128"}}, {});
   }
 
-  unique_ptr<TcpChannel>
-  makeChannel(const boost::asio::ip::address& addr, uint16_t port = 0) final
+  shared_ptr<TcpChannel>
+  makeChannel(const boost::asio::ip::address& addr, uint16_t port = 0,
+              std::optional<size_t> mtu = std::nullopt) final
   {
     if (port == 0)
       port = getNextPort();
 
-    return make_unique<TcpChannel>(tcp::Endpoint(addr, port), false,
-                                   std::bind(&TcpChannelFixture::determineFaceScope, this, _1, _2));
+    return std::make_shared<TcpChannel>(tcp::Endpoint(addr, port), false,
+                                        std::bind(&TcpChannelFixture::determineFaceScope, this, _1, _2));
   }
 
   void
   connect(TcpChannel& channel) final
   {
-    g_io.post([&] {
+    boost::asio::defer(g_io, [&] {
       channel.connect(listenerEp, {},
         [this] (const shared_ptr<Face>& newFace) {
           BOOST_REQUIRE(newFace != nullptr);
@@ -82,11 +85,9 @@ protected:
 
 protected:
   std::vector<shared_ptr<Face>> clientFaces;
-  IpAddressPredicate local;
+  face::IpAddressPredicate local;
 };
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FACE_TCP_CHANNEL_FIXTURE_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,11 +31,13 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
 
-namespace nfd {
-namespace fib {
-namespace tests {
+#include <ndn-cxx/util/concepts.hpp>
 
-using namespace nfd::tests;
+namespace nfd::tests {
+
+using namespace nfd::fib;
+
+NDN_CXX_ASSERT_FORWARD_ITERATOR(Fib::const_iterator);
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestFib, GlobalIoFixture)
@@ -92,7 +94,7 @@ BOOST_AUTO_TEST_CASE(FibEntry)
   // [(face1,30), (face2,40)]
   BOOST_CHECK_EQUAL(entry.getNextHops().size(), 2);
   {
-    NextHopList::const_iterator it = entry.getNextHops().begin();
+    auto it = entry.getNextHops().begin();
     BOOST_REQUIRE(it != entry.getNextHops().end());
     BOOST_CHECK_EQUAL(&it->getFace(), face1.get());
     BOOST_CHECK_EQUAL(it->getCost(), 30);
@@ -112,7 +114,7 @@ BOOST_AUTO_TEST_CASE(FibEntry)
   // [(face2,10), (face1,30)]
   BOOST_CHECK_EQUAL(entry.getNextHops().size(), 2);
   {
-    NextHopList::const_iterator it = entry.getNextHops().begin();
+    auto it = entry.getNextHops().begin();
     BOOST_REQUIRE(it != entry.getNextHops().end());
     BOOST_CHECK_EQUAL(&it->getFace(), face2.get());
     BOOST_CHECK_EQUAL(it->getCost(), 10);
@@ -242,20 +244,21 @@ BOOST_AUTO_TEST_CASE(LongestPrefixMatchWithMeasurementsEntry)
   BOOST_CHECK_EQUAL(fib.findLongestPrefixMatch(mABCD).getPrefix(), "/A/B/C");
 }
 
-void
+static void
 validateFindExactMatch(Fib& fib, const Name& target)
 {
+  BOOST_TEST_INFO_SCOPE(target);
   const Entry* entry = fib.findExactMatch(target);
-  BOOST_REQUIRE_MESSAGE(entry != nullptr, "No entry found for " << target);
+  BOOST_REQUIRE(entry != nullptr);
   BOOST_CHECK_EQUAL(entry->getPrefix(), target);
 }
 
-void
+static void
 validateNoExactMatch(Fib& fib, const Name& target)
 {
+  BOOST_TEST_INFO_SCOPE(target);
   const Entry* entry = fib.findExactMatch(target);
-  BOOST_CHECK_MESSAGE(entry == nullptr,
-                      "Found unexpected entry for " << target);
+  BOOST_CHECK(entry == nullptr);
 }
 
 BOOST_AUTO_TEST_CASE(ExactMatch)
@@ -292,13 +295,12 @@ BOOST_AUTO_TEST_CASE(ExactMatchEmpty)
   validateNoExactMatch(fib, "/nothing/here");
 }
 
-void
+static void
 validateErase(Fib& fib, const Name& target)
 {
+  BOOST_TEST_INFO_SCOPE(target);
   fib.erase(target);
-
-  const Entry* entry = fib.findExactMatch(target);
-  BOOST_CHECK_MESSAGE(entry == nullptr, "Found \"removed\" entry for " << target);
+  BOOST_CHECK(fib.findExactMatch(target) == nullptr);
 }
 
 BOOST_AUTO_TEST_CASE(Erase)
@@ -390,6 +392,4 @@ BOOST_AUTO_TEST_CASE(Iterator)
 BOOST_AUTO_TEST_SUITE_END() // TestFib
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace fib
-} // namespace nfd
+} // namespace nfd::tests

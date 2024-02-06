@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,10 +31,12 @@
 #include <ndn-cxx/security/signing-info.hpp>
 #include <ndn-cxx/util/scheduler.hpp>
 
-namespace nfd {
-namespace rib {
+#include <set>
 
-/** \brief state of a readvertised route
+namespace nfd::rib {
+
+/**
+ * \brief State of a readvertised route.
  */
 class ReadvertisedRoute : noncopyable
 {
@@ -42,28 +44,25 @@ public:
   explicit
   ReadvertisedRoute(const Name& prefix)
     : prefix(prefix)
-    , nRibRoutes(0)
-    , retryDelay(0)
   {
+  }
+
+  friend bool
+  operator<(const ReadvertisedRoute& lhs, const ReadvertisedRoute& rhs)
+  {
+    return lhs.prefix < rhs.prefix;
   }
 
 public:
   Name prefix; ///< readvertised prefix
   mutable ndn::security::SigningInfo signer; ///< signer for commands
-  mutable size_t nRibRoutes; ///< number of RIB routes that cause the readvertisement
-  mutable time::milliseconds retryDelay; ///< retry interval (not used for refresh)
-  mutable scheduler::ScopedEventId retryEvt; ///< retry or refresh event
+  mutable size_t nRibRoutes = 0; ///< number of RIB routes that cause the readvertisement
+  mutable time::milliseconds retryDelay = 0_ms; ///< retry interval (not used for refresh)
+  mutable ndn::scheduler::ScopedEventId retryEvt; ///< retry or refresh event
 };
-
-inline bool
-operator<(const ReadvertisedRoute& lhs, const ReadvertisedRoute& rhs)
-{
-  return lhs.prefix < rhs.prefix;
-}
 
 using ReadvertisedRouteContainer = std::set<ReadvertisedRoute>;
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib
 
 #endif // NFD_DAEMON_RIB_READVERTISE_READVERTISED_ROUTE_HPP

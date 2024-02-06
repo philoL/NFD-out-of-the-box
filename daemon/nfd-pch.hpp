@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,40 +23,23 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "core/algorithm.hpp"
+#ifndef NFD_DAEMON_NFD_PCH_HPP
+#define NFD_DAEMON_NFD_PCH_HPP
 
-#include "tests/test-common.hpp"
+#include "core/common.hpp"
 
-namespace nfd {
-namespace tests {
+#include <functional>
+#include <map>
+#include <set>
 
-BOOST_AUTO_TEST_SUITE(TestAlgorithm)
+#include <boost/lexical_cast.hpp>
+#include <boost/property_tree/ptree.hpp>
 
-BOOST_AUTO_TEST_CASE(FindLastIf)
-{
-  std::vector<int> vec{1, 2, 3, 4, 5, 6, 7, 8, 9};
+#include <ndn-cxx/lp/packet.hpp>
+#include <ndn-cxx/mgmt/dispatcher.hpp>
+#include <ndn-cxx/mgmt/nfd/controller.hpp>
+#include <ndn-cxx/net/face-uri.hpp>
+#include <ndn-cxx/security/validator.hpp>
+#include <ndn-cxx/util/logger.hpp>
 
-  int hit1 = 0;
-  std::vector<int>::const_iterator found1 = find_last_if(vec.begin(), vec.end(),
-      [&hit1] (int n) -> bool {
-        ++hit1;
-        return n % 2 == 0;
-      });
-  BOOST_REQUIRE(found1 != vec.end());
-  BOOST_CHECK_EQUAL(*found1, 8);
-  BOOST_CHECK_LE(hit1, vec.size());
-
-  int hit2 = 0;
-  std::vector<int>::const_iterator found2 = find_last_if(vec.begin(), vec.end(),
-      [&hit2] (int n) -> bool {
-        ++hit2;
-        return n < 0;
-      });
-  BOOST_CHECK(found2 == vec.end());
-  BOOST_CHECK_LE(hit2, vec.size());
-}
-
-BOOST_AUTO_TEST_SUITE_END() // TestAlgorithm
-
-} // namespace tests
-} // namespace nfd
+#endif // NFD_DAEMON_NFD_PCH_HPP

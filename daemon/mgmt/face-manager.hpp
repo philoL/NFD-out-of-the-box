@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,13 +30,15 @@
 #include "face/face.hpp"
 #include "face/face-system.hpp"
 
+#include <map>
+
 namespace nfd {
 
 /**
  * @brief Implements the Face Management of NFD Management Protocol.
  * @sa https://redmine.named-data.net/projects/nfd/wiki/FaceMgmt
  */
-class FaceManager : public ManagerBase
+class FaceManager final : public ManagerBase
 {
 public:
   FaceManager(FaceSystem& faceSystem,
@@ -86,7 +88,7 @@ private:
   signal::ScopedConnection m_faceAddConn;
   signal::ScopedConnection m_faceRemoveConn;
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   std::map<FaceId, signal::ScopedConnection> m_faceStateChangeConn;
 };
 

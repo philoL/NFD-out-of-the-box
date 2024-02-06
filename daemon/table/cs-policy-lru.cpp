@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,11 +26,8 @@
 #include "cs-policy-lru.hpp"
 #include "cs.hpp"
 
-namespace nfd {
-namespace cs {
-namespace lru {
+namespace nfd::cs::lru {
 
-const std::string LruPolicy::POLICY_NAME = "lru";
 NFD_REGISTER_CS_POLICY(LruPolicy);
 
 LruPolicy::LruPolicy()
@@ -71,17 +68,15 @@ LruPolicy::evictEntries()
     BOOST_ASSERT(!m_queue.empty());
     EntryRef i = m_queue.front();
     m_queue.pop_front();
-    this->emitSignal(beforeEvict, i);
+    emitSignal(beforeEvict, i);
   }
 }
 
 void
 LruPolicy::insertToQueue(EntryRef i, bool isNewEntry)
 {
-  Queue::iterator it;
-  bool isNew = false;
   // push_back only if i does not exist
-  std::tie(it, isNew) = m_queue.push_back(i);
+  auto [it, isNew] = m_queue.push_back(i);
 
   BOOST_ASSERT(isNew == isNewEntry);
   if (!isNewEntry) {
@@ -89,6 +84,4 @@ LruPolicy::insertToQueue(EntryRef i, bool isNewEntry)
   }
 }
 
-} // namespace lru
-} // namespace cs
-} // namespace nfd
+} // namespace nfd::cs::lru

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,10 +30,9 @@
 
 #include <boost/asio/ip/address.hpp>
 #include <ndn-cxx/net/network-address.hpp>
+#include <ndn-cxx/net/network-interface.hpp>
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
 enum class AddressFamily {
   V4 = static_cast<int>(ndn::net::AddressFamily::V4),
@@ -63,8 +62,6 @@ enum class MulticastInterface {
 std::ostream&
 operator<<(std::ostream& os, MulticastInterface mcast);
 
-/** \brief Derives IP address type from AddressFamily
- */
 template<AddressFamily AF>
 struct IpAddressFromFamily;
 
@@ -80,21 +77,41 @@ struct IpAddressFromFamily<AddressFamily::V6>
   using type = boost::asio::ip::address_v6;
 };
 
-/** \brief Get an IP address from any available network interface
- *  \param family the desired address family
- *  \param scope the desired address scope
- *  \param mcast specifies if the address can, must, or must not be chosen from a multicast-capable interface
- *  \return an IP address, either boost::asio::ip::address_v4 or boost::asio::ip::address_v6
- *  \retval unspecified address, if no appropriate address is available
+/**
+ * \brief Derives IP address type from AddressFamily
  */
-boost::asio::ip::address
+template<AddressFamily AF>
+using IpAddressTypeFromFamily = typename IpAddressFromFamily<AF>::type;
+
+/**
+ * \brief Get an IP address from any available network interface, satisfying the given requirements
+ * \param family the desired address family
+ * \param scope the desired address scope
+ * \param mcast specifies if the address can, must, or must not be chosen from a multicast-capable interface
+ * \return an IP address, either boost::asio::ip::address_v4 or boost::asio::ip::address_v6
+ * \retval unspecified address, if no appropriate address is available
+ */
+[[nodiscard]] boost::asio::ip::address
 getTestIp(AddressFamily family = AddressFamily::Any,
           AddressScope scope = AddressScope::Any,
           MulticastInterface mcast = MulticastInterface::Any);
 
+/**
+ * \brief Get a network interface and an IP address on it that satisfy the given requirements
+ * \param family the desired address family
+ * \param scope the desired address scope
+ * \param mcast specifies if the address can, must, or must not be chosen from a multicast-capable interface
+ */
+[[nodiscard]] std::tuple<shared_ptr<const ndn::net::NetworkInterface>, boost::asio::ip::address>
+getTestInterfaceAndIp(AddressFamily family = AddressFamily::Any,
+                      AddressScope scope = AddressScope::Any,
+                      MulticastInterface mcast = MulticastInterface::Any);
+
+} // namespace nfd::tests
+
 /** \brief Skip the rest of the test case if \p address is unavailable
  *
- *  This macro can be used in conjunction with nfd::tests::getTestIp in a test case. Example:
+ *  This macro can be used in conjunction with nfd::tests::getTestIp() in a test case. Example:
  *  \code
  *  BOOST_AUTO_TEST_CASE(TestCase)
  *  {
@@ -111,9 +128,5 @@ getTestIp(AddressFamily family = AddressFamily::Any,
       return; \
     } \
   } while (false)
-
-} // namespace tests
-} // namespace face
-} // namespace nfd
 
 #endif // NFD_TESTS_DAEMON_FACE_TEST_IP_HPP

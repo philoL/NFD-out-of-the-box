@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,12 +29,11 @@
 
 #include <iostream>
 
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
 #include <valgrind/callgrind.h>
 #endif
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class PitFibBenchmarkFixture
 {
@@ -43,7 +42,7 @@ protected:
     : m_fib(m_nameTree)
     , m_pit(m_nameTree)
   {
-#ifdef _DEBUG
+#ifndef NDEBUG
     std::cerr << "Benchmark compiled in debug mode is unreliable, please compile in release mode.\n";
 #endif
   }
@@ -60,13 +59,13 @@ protected:
     BOOST_ASSERT(interestNameLength <= dataNameLength);
 
     for (size_t i = 0; i < nPackets; i++) {
-      Name prefix(to_string(i / nFibEntries));
+      Name prefix(std::to_string(i / nFibEntries));
       extendName(prefix, fibPrefixLength);
       m_fib.insert(prefix);
 
       Name interestName = prefix;
       if (nPackets > nFibEntries) {
-        interestName.append(to_string(i));
+        interestName.append(std::to_string(i));
       }
       extendName(interestName, interestNameLength);
       interests.push_back(make_shared<Interest>(interestName));
@@ -118,7 +117,7 @@ BOOST_FIXTURE_TEST_CASE(SimpleExchanges, PitFibBenchmarkFixture)
   generatePacketsAndPopulateFib(nRoundTrip, nFibEntries, fibPrefixLength,
                                 interestNameLength, dataNameLength);
 
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
   CALLGRIND_START_INSTRUMENTATION;
 #endif
 
@@ -142,12 +141,11 @@ BOOST_FIXTURE_TEST_CASE(SimpleExchanges, PitFibBenchmarkFixture)
 
   auto t2 = time::steady_clock::now();
 
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
   CALLGRIND_STOP_INSTRUMENTATION;
 #endif
 
   std::cout << time::duration_cast<time::microseconds>(t2 - t1) << std::endl;
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

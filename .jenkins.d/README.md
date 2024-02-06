@@ -1,36 +1,36 @@
-CONTINUOUS INTEGRATION SCRIPTS
-==============================
+# Continuous Integration Scripts
 
-Environment Variables Used in Build Scripts
--------------------------------------------
+## Environment Variables
 
-- `NODE_LABELS`: the variable defines a list of OS properties.  The set values are used by the
-  build scripts to select proper behavior for different OS.
+- `ID`: lower-case string that identifies the operating system, for example: `ID=ubuntu`,
+  `ID=centos`. See [os-release(5)] for more information. On macOS, where `os-release` is
+  not available, we emulate it by setting `ID=macos`.
 
-  The list should include at least `[OS_TYPE]`, `[DISTRO_TYPE]`, and `[DISTRO_VERSION]`.
+- `ID_LIKE`: space-separated list of operating system identifiers that are closely related
+  to the running OS. See [os-release(5)] for more information. The listed values are used
+  by the CI scripts to select the proper behavior for different platforms and OS flavors.
 
-  Possible values for Linux:
+  Examples:
 
-  * `[OS_TYPE]`: `Linux`
-  * `[DISTRO_TYPE]`: `Ubuntu`
-  * `[DISTRO_VERSION]`: `Ubuntu-16.04`, `Ubuntu-18.04`
+  - On CentOS, `ID_LIKE="centos rhel fedora linux"`
+  - On Ubuntu, `ID_LIKE="ubuntu debian linux"`
 
-  Possible values for OS X / macOS:
+- `VERSION_ID`: identifies the operating system version, excluding any release code names.
+  See [os-release(5)] for more information. Examples: `VERSION_ID=42`, `VERSION_ID=22.04`.
 
-  * `[OS_TYPE]`: `OSX`
-  * `[DISTRO_TYPE]`: `OSX` (can be absent)
-  * `[DISTRO_VERSION]`: `OSX-10.11`, `OSX-10.12`, `OSX-10.13`
+- `JOB_NAME`: defines the type of the current CI job. Depending on the job type, the CI
+  scripts can perform different tasks.
 
-- `JOB_NAME`: optional variable to define type of the job.  Depending on the defined job type,
-  the build scripts can perform different tasks.
+  Supported values:
 
-  Possible values:
+  - empty: default build task
+  - `code-coverage`: debug build with tests and code coverage analysis
+  - `limited-build`: only a single debug build with tests
 
-  * empty: default build process
-  * `code-coverage` (Ubuntu Linux is assumed): debug build with tests and code coverage analysis
-  * `limited-build`: only a single debug build with tests
+- `CACHE_DIR`: directory containing cached files from previous builds, e.g., a compiled
+  version of ndn-cxx. If not set, `/tmp` is used.
 
-- `CACHE_DIR`: the variable defines a path to folder containing cached files from previous builds,
-  e.g., a compiled version of ndn-cxx library.  If not set, `/tmp` is used.
+- `DISABLE_ASAN`: disable building with AddressSanitizer. This is automatically set for
+  the `code-coverage` job type.
 
-- `WAF_JOBS`: number of parallel build jobs used by waf, defaults to 1.
+[os-release(5)]: https://www.freedesktop.org/software/systemd/man/os-release.html

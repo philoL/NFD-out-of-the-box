@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,9 +26,7 @@
 #include "test-ip.hpp"
 #include "test-netif.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
 std::ostream&
 operator<<(std::ostream& os, AddressFamily family)
@@ -86,6 +84,12 @@ matchTristate(E e, bool b)
 boost::asio::ip::address
 getTestIp(AddressFamily family, AddressScope scope, MulticastInterface mcast)
 {
+  return std::get<boost::asio::ip::address>(getTestInterfaceAndIp(family, scope, mcast));
+}
+
+std::tuple<shared_ptr<const ndn::net::NetworkInterface>, boost::asio::ip::address>
+getTestInterfaceAndIp(AddressFamily family, AddressScope scope, MulticastInterface mcast)
+{
   for (const auto& interface : collectNetworkInterfaces()) {
     if (!interface->isUp() ||
         !matchTristate(mcast, interface->canMulticast())) {
@@ -99,13 +103,11 @@ getTestIp(AddressFamily family, AddressScope scope, MulticastInterface mcast)
            static_cast<int>(scope) == static_cast<int>(address.getScope())) &&
           (scope != AddressScope::Loopback ||
            address.getIp().is_loopback())) {
-        return address.getIp();
+        return {interface, address.getIp()};
       }
     }
   }
   return {};
 }
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

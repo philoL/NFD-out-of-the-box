@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,20 +28,23 @@
 
 #include "tests/test-common.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
+#include "choose-strategy.hpp"
 #include "strategy-tester.hpp"
+#include "topology-tester.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
+#include <boost/mp11/list.hpp>
 
-using MulticastStrategyTester = StrategyTester<MulticastStrategy>;
+namespace nfd::tests {
+
+using MulticastStrategyTester = StrategyTester<fw::MulticastStrategy>;
 NFD_REGISTER_STRATEGY(MulticastStrategyTester);
 
 class MulticastStrategyFixture : public GlobalIoTimeFixture
 {
 protected:
   MulticastStrategyFixture()
-    : face1(make_shared<DummyFace>())
+    : strategy(choose<MulticastStrategyTester>(forwarder))
+    , face1(make_shared<DummyFace>())
     , face2(make_shared<DummyFace>())
     , face3(make_shared<DummyFace>())
   {
@@ -50,10 +53,19 @@ protected:
     faceTable.add(face3);
   }
 
+  bool
+  didSendInterestTo(const Face& face) const
+  {
+    auto it = std::find_if(strategy.sendInterestHistory.begin(),
+                           strategy.sendInterestHistory.end(),
+                           [&] (const auto& elem) { return elem.outFaceId == face.getId(); });
+    return it != strategy.sendInterestHistory.end();
+  }
+
 protected:
   FaceTable faceTable;
   Forwarder forwarder{faceTable};
-  MulticastStrategyTester strategy{forwarder};
+  MulticastStrategyTester& strategy;
   Fib& fib{forwarder.getFib()};
   Pit& pit{forwarder.getPit()};
 
@@ -65,6 +77,82 @@ protected:
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_FIXTURE_TEST_SUITE(TestMulticastStrategy, MulticastStrategyFixture)
 
+BOOST_AUTO_TEST_CASE(Bug5123)
+{
+  fib::Entry& fibEntry = *fib.insert(Name()).first;
+  fib.addOrUpdateNextHop(fibEntry, *face2, 0);
+
+  // Send an Interest from face 1 to face 2
+  auto interest = makeInterest("ndn:/H0D6i5fc");
+  auto pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face1, *interest);
+
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
+  BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
+  BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 1);
+
+  // Advance more than default suppression
+  this->advanceClocks(15_ms);
+
+  // Get same interest from face 2 which does not have anywhere to go
+  pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face2, *interest);
+
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face2), pitEntry);
+  // Since the interest is the same as the one sent out earlier, the PIT entry should not be
+  // rejected, as any data coming back must be able to satisfy the original interest from face 1
+  BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
+
+  /*
+   *      +---------+            +---------+          +---------+
+   *      |  nodeA  |------------|  nodeB  |----------|  nodeC  |
+   *      +---------+    10ms    +---------+   100ms  +---------+
+   */
+
+  const Name PRODUCER_PREFIX = "/ndn/edu/nodeC/ping";
+
+  TopologyTester topo;
+  TopologyNode nodeA = topo.addForwarder("A"),
+               nodeB = topo.addForwarder("B"),
+               nodeC = topo.addForwarder("C");
+
+  for (TopologyNode node : {nodeA, nodeB, nodeC}) {
+    topo.setStrategy<fw::MulticastStrategy>(node);
+  }
+
+  shared_ptr<TopologyLink> linkAB = topo.addLink("AB", 10_ms,  {nodeA, nodeB}),
+                           linkBC = topo.addLink("BC", 100_ms, {nodeB, nodeC});
+
+  shared_ptr<TopologyAppLink> appA = topo.addAppFace("cA", nodeA),
+                              appB = topo.addAppFace("cB", nodeB),
+                        pingServer = topo.addAppFace("p",  nodeC, PRODUCER_PREFIX);
+  topo.addEchoProducer(pingServer->getClientFace());
+  topo.registerPrefix(nodeA, linkAB->getFace(nodeA), PRODUCER_PREFIX, 10);
+  topo.registerPrefix(nodeB, linkAB->getFace(nodeB), PRODUCER_PREFIX, 10);
+  topo.registerPrefix(nodeB, linkBC->getFace(nodeB), PRODUCER_PREFIX, 100);
+
+  Name name(PRODUCER_PREFIX);
+  name.appendTimestamp();
+  interest = makeInterest(name);
+  appA->getClientFace().expressInterest(*interest, nullptr, nullptr, nullptr);
+
+  this->advanceClocks(10_ms, 20_ms);
+
+  // AppB expresses the same interest
+  interest->refreshNonce();
+  appB->getClientFace().expressInterest(*interest, nullptr, nullptr, nullptr);
+  this->advanceClocks(10_ms, 200_ms);
+
+  // Data should have made to appB
+  BOOST_CHECK_EQUAL(linkBC->getFace(nodeB).getCounters().nInData, 1);
+  BOOST_CHECK_EQUAL(linkAB->getFace(nodeA).getCounters().nInData, 0);
+
+  this->advanceClocks(10_ms, 10_ms);
+  // nodeA should have gotten the data successfully
+  BOOST_CHECK_EQUAL(linkAB->getFace(nodeA).getCounters().nInData, 1);
+  BOOST_CHECK_EQUAL(topo.getForwarder(nodeA).getCounters().nUnsolicitedData, 0);
+}
+
 BOOST_AUTO_TEST_CASE(Forward2)
 {
   fib::Entry& fibEntry = *fib.insert(Name()).first;
@@ -72,35 +160,28 @@ BOOST_AUTO_TEST_CASE(Forward2)
   fib.addOrUpdateNextHop(fibEntry, *face2, 0);
   fib.addOrUpdateNextHop(fibEntry, *face3, 0);
 
-  shared_ptr<Interest> interest = makeInterest("ndn:/H0D6i5fc");
-  shared_ptr<pit::Entry> pitEntry = pit.insert(*interest).first;
+  auto interest = makeInterest("ndn:/H0D6i5fc");
+  auto pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face3, *interest);
 
-  strategy.afterReceiveInterest(FaceEndpoint(*face3, 0), *interest, pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 2);
-  std::set<FaceId> sentInterestFaceIds;
-  std::transform(strategy.sendInterestHistory.begin(), strategy.sendInterestHistory.end(),
-                 std::inserter(sentInterestFaceIds, sentInterestFaceIds.end()),
-                 [] (const MulticastStrategyTester::SendInterestArgs& args) {
-                   return args.outFaceId;
-                 });
-  std::set<FaceId> expectedInterestFaceIds{face1->getId(), face2->getId()};
-  BOOST_CHECK_EQUAL_COLLECTIONS(sentInterestFaceIds.begin(), sentInterestFaceIds.end(),
-                                expectedInterestFaceIds.begin(), expectedInterestFaceIds.end());
+  BOOST_TEST(didSendInterestTo(*face1));
+  BOOST_TEST(didSendInterestTo(*face2));
 
-  const time::nanoseconds TICK = time::duration_cast<time::nanoseconds>(
-                                 MulticastStrategy::RETX_SUPPRESSION_INITIAL * 0.1);
+  const auto TICK = time::duration_cast<time::nanoseconds>(
+                      fw::RetxSuppressionExponential::DEFAULT_INITIAL_INTERVAL) / 10;
 
   // downstream retransmits frequently, but the strategy should not send Interests
   // more often than DEFAULT_MIN_RETX_INTERVAL
-  scheduler::EventId retxFrom4Evt;
+  ndn::scheduler::EventId retxFrom4Evt;
   size_t nSentLast = strategy.sendInterestHistory.size();
-  time::steady_clock::TimePoint timeSentLast = time::steady_clock::now();
+  auto timeSentLast = time::steady_clock::now();
   std::function<void()> periodicalRetxFrom4; // let periodicalRetxFrom4 lambda capture itself
   periodicalRetxFrom4 = [&] {
     pitEntry->insertOrUpdateInRecord(*face3, *interest);
-    strategy.afterReceiveInterest(FaceEndpoint(*face3, 0), *interest, pitEntry);
+    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
 
     size_t nSent = strategy.sendInterestHistory.size();
     if (nSent > nSentLast) {
@@ -115,27 +196,318 @@ BOOST_AUTO_TEST_CASE(Forward2)
     retxFrom4Evt = getScheduler().schedule(TICK * 5, periodicalRetxFrom4);
   };
   periodicalRetxFrom4();
-  this->advanceClocks(TICK, MulticastStrategy::RETX_SUPPRESSION_MAX * 16);
+  this->advanceClocks(TICK, fw::RetxSuppressionExponential::DEFAULT_MAX_INTERVAL * 16);
   retxFrom4Evt.cancel();
 }
 
-BOOST_AUTO_TEST_CASE(RejectLoopback)
+BOOST_AUTO_TEST_CASE(LoopingInterest)
 {
   fib::Entry& fibEntry = *fib.insert(Name()).first;
   fib.addOrUpdateNextHop(fibEntry, *face1, 0);
 
-  shared_ptr<Interest> interest = makeInterest("ndn:/H0D6i5fc");
-  shared_ptr<pit::Entry> pitEntry = pit.insert(*interest).first;
+  auto interest = makeInterest("ndn:/H0D6i5fc");
+  auto pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
 
-  strategy.afterReceiveInterest(FaceEndpoint(*face1, 0), *interest, pitEntry);
-  BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 1);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
+  BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 0);
 }
 
+BOOST_AUTO_TEST_CASE(RetxSuppression)
+{
+  const auto suppressPeriod = fw::RetxSuppressionExponential::DEFAULT_INITIAL_INTERVAL;
+  BOOST_ASSERT(suppressPeriod >= 8_ms);
+
+  // Set up the FIB
+  fib::Entry& fibEntry = *fib.insert(Name()).first;
+  fib.addOrUpdateNextHop(fibEntry, *face1, 0);
+  fib.addOrUpdateNextHop(fibEntry, *face2, 0);
+  fib.addOrUpdateNextHop(fibEntry, *face3, 0);
+
+  // Interest arrives from face 1
+  auto interest = makeInterest("/t8ZiSOi3");
+  auto pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face1, *interest);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
+
+  // forwarded to faces 2 and 3
+  BOOST_TEST(strategy.sendInterestHistory.size() == 2);
+  BOOST_TEST(didSendInterestTo(*face2));
+  BOOST_TEST(didSendInterestTo(*face3));
+  strategy.sendInterestHistory.clear();
+
+  // still within the initial suppression period for face 2 and 3
+  this->advanceClocks(suppressPeriod - 5_ms);
+
+  // Interest arrives from face 2
+  interest->refreshNonce();
+  pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face2, *interest);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face2), pitEntry);
+
+  // forwarded only to face 1, suppressed on face 3
+  BOOST_TEST(strategy.sendInterestHistory.size() == 1);
+  BOOST_TEST(didSendInterestTo(*face1));
+  strategy.sendInterestHistory.clear();
+
+  // faces 2 and 3 no longer inside the suppression window
+  this->advanceClocks(7_ms);
+
+  // Interest arrives from face 3
+  interest->refreshNonce();
+  pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face3, *interest);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
+
+  // suppressed on face 1, forwarded on face 2 (and suppression window doubles)
+  BOOST_TEST(strategy.sendInterestHistory.size() == 1);
+  BOOST_TEST(didSendInterestTo(*face2));
+  strategy.sendInterestHistory.clear();
+
+  // face 1 exits the suppression period, face 2 still inside
+  this->advanceClocks(2 * suppressPeriod - 2_ms);
+
+  // Interest arrives from face 3
+  interest->refreshNonce();
+  pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face3, *interest);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
+
+  // forwarded only to face 1, suppressed on face 2
+  BOOST_TEST(strategy.sendInterestHistory.size() == 1);
+  BOOST_TEST(didSendInterestTo(*face1));
+  strategy.sendInterestHistory.clear();
+
+  // face 2 exits the suppression period
+  this->advanceClocks(3_ms);
+
+  // Interest arrives from face 1
+  interest->refreshNonce();
+  pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face1, *interest);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
+
+  // forwarded to faces 2 and 3
+  BOOST_TEST(strategy.sendInterestHistory.size() == 2);
+  BOOST_TEST(didSendInterestTo(*face2));
+  BOOST_TEST(didSendInterestTo(*face3));
+  strategy.sendInterestHistory.clear();
+}
+
+BOOST_AUTO_TEST_CASE(NewNextHop)
+{
+  fib::Entry& fibEntry = *fib.insert(Name()).first;
+  fib.addOrUpdateNextHop(fibEntry, *face1, 0);
+  fib.addOrUpdateNextHop(fibEntry, *face2, 0);
+
+  auto interest = makeInterest("ndn:/H0D6i5fc");
+  auto pitEntry = pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*face1, *interest);
+
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
+  BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
+  BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 1);
+
+  fib.addOrUpdateNextHop(fibEntry, *face3, 0);
+  BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
+  BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 2);
+}
+
+BOOST_AUTO_TEST_SUITE(LocalhopScope)
+
+class ForwardAsyncFixture : public MulticastStrategyFixture
+{
+protected:
+  shared_ptr<Face> inFace1;
+  shared_ptr<Face> inFace2;
+  shared_ptr<Face> fibFace1;
+  shared_ptr<Face> fibFace2;
+  shared_ptr<Face> newFibFace;
+
+  size_t expectedInterests = 0;
+};
+
+class BasicNonLocal : public ForwardAsyncFixture
+{
+protected:
+  BasicNonLocal()
+  {
+    inFace1 = face1;
+    // inFace2 = nullptr;
+    fibFace1 = face1;
+    fibFace2 = face2;
+    newFibFace = face3;
+    expectedInterests = 0; // anything received on non-local face can only be sent to local face
+  }
+};
+
+class NewFibLocal : public ForwardAsyncFixture
+{
+protected:
+  NewFibLocal()
+  {
+    inFace1 = face1;
+    // inFace2 = nullptr;
+    fibFace1 = face1;
+    fibFace2 = face2;
+    newFibFace = make_shared<DummyFace>("dummy://", "dummy://", ndn::nfd::FACE_SCOPE_LOCAL);
+    expectedInterests = 1;
+
+    faceTable.add(newFibFace);
+  }
+};
+
+class InFaceLocal : public ForwardAsyncFixture
+{
+protected:
+  InFaceLocal()
+  {
+    inFace1 = make_shared<DummyFace>("dummy://", "dummy://", ndn::nfd::FACE_SCOPE_LOCAL);
+    // inFace2 = nullptr;
+    fibFace1 = face1;
+    fibFace2 = face2;
+    newFibFace = face3;
+    expectedInterests = 1;
+
+    faceTable.add(inFace1);
+  }
+};
+
+class InFaceLocalSameNewFace : public ForwardAsyncFixture
+{
+protected:
+  InFaceLocalSameNewFace()
+  {
+    inFace1 = make_shared<DummyFace>("dummy://", "dummy://", ndn::nfd::FACE_SCOPE_LOCAL);
+    // inFace2 = nullptr;
+    fibFace1 = face1;
+    fibFace2 = face2;
+    newFibFace = inFace1;
+    expectedInterests = 0;
+
+    faceTable.add(inFace1);
+  }
+};
+
+class InFaceLocalAdHocSameNewFace : public ForwardAsyncFixture
+{
+protected:
+  InFaceLocalAdHocSameNewFace()
+  {
+    inFace1 = make_shared<DummyFace>("dummy://", "dummy://", ndn::nfd::FACE_SCOPE_LOCAL,
+                                     ndn::nfd::FACE_PERSISTENCY_PERSISTENT,
+                                     ndn::nfd::LINK_TYPE_AD_HOC);
+    // inFace2 = nullptr;
+    fibFace1 = face1;
+    fibFace2 = face2;
+    newFibFace = inFace1;
+    expectedInterests = 1;
+
+    faceTable.add(inFace1);
+  }
+};
+
+class InFaceLocalAndNonLocal1 : public ForwardAsyncFixture
+{
+protected:
+  InFaceLocalAndNonLocal1()
+  {
+    inFace1 = make_shared<DummyFace>("dummy://", "dummy://", ndn::nfd::FACE_SCOPE_LOCAL);
+    inFace2 = face1;
+    fibFace1 = face1;
+    fibFace2 = face2;
+    newFibFace = face3;
+    expectedInterests = 1;
+
+    faceTable.add(inFace1);
+  }
+};
+
+class InFaceLocalAndNonLocal2 : public ForwardAsyncFixture
+{
+protected:
+  InFaceLocalAndNonLocal2()
+  {
+    inFace1 = face1;
+    inFace2 = make_shared<DummyFace>("dummy://", "dummy://", ndn::nfd::FACE_SCOPE_LOCAL);
+    fibFace1 = face1;
+    fibFace2 = face2;
+    newFibFace = face3;
+    expectedInterests = 1;
+
+    faceTable.add(inFace2);
+  }
+};
+
+class InFaceSelection1 : public ForwardAsyncFixture
+{
+protected:
+  InFaceSelection1()
+  {
+    inFace1 = face1;
+    // inFace2 = nullptr;
+    fibFace1 = face3;
+    fibFace2 = face2;
+    newFibFace = face1;
+
+    expectedInterests = 0;
+  }
+};
+
+class InFaceSelection2 : public ForwardAsyncFixture
+{
+protected:
+  InFaceSelection2()
+  {
+    inFace1 = face2;
+    inFace2 = face1;
+    fibFace1 = face2;
+    fibFace2 = face3;
+    newFibFace = face1;
+
+    // this test will trigger the check for additional branch, but it
+    // still is not going to pass the localhop check
+    expectedInterests = 0;
+  }
+};
+
+using Tests = boost::mp11::mp_list<
+  BasicNonLocal,
+  NewFibLocal,
+  InFaceLocal,
+  InFaceLocalSameNewFace,
+  InFaceLocalAdHocSameNewFace,
+  InFaceLocalAndNonLocal1,
+  InFaceLocalAndNonLocal2,
+  InFaceSelection1,
+  InFaceSelection2
+>;
+
+BOOST_FIXTURE_TEST_CASE_TEMPLATE(ForwardAsync, T, Tests, T)
+{
+  fib::Entry& fibEntry = *this->fib.insert(Name("/localhop")).first;
+  this->fib.addOrUpdateNextHop(fibEntry, *this->fibFace1, 0);
+  this->fib.addOrUpdateNextHop(fibEntry, *this->fibFace2, 0);
+
+  auto interest = makeInterest("ndn:/localhop/H0D6i5fc");
+  auto pitEntry = this->pit.insert(*interest).first;
+  pitEntry->insertOrUpdateInRecord(*this->inFace1, *interest);
+  this->strategy.afterReceiveInterest(*interest, FaceEndpoint(*this->inFace1), pitEntry);
+
+  if (this->inFace2 != nullptr) {
+    auto interest2 = makeInterest("ndn:/localhop/H0D6i5fc");
+    pitEntry->insertOrUpdateInRecord(*this->inFace2, *interest2);
+    this->strategy.afterReceiveInterest(*interest2, FaceEndpoint(*this->inFace2), pitEntry);
+  }
+
+  this->strategy.sendInterestHistory.clear();
+  this->fib.addOrUpdateNextHop(fibEntry, *this->newFibFace, 0);
+  BOOST_CHECK_EQUAL(this->strategy.sendInterestHistory.size(), this->expectedInterests);
+}
+
+BOOST_AUTO_TEST_SUITE_END() // LocalhopScope
 BOOST_AUTO_TEST_SUITE_END() // TestMulticastStrategy
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

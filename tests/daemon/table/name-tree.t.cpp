@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,11 +28,17 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace name_tree {
-namespace tests {
+#include <unordered_set>
 
-using namespace nfd::tests;
+#include <boost/range/concepts.hpp>
+#include <ndn-cxx/util/concepts.hpp>
+
+namespace nfd::tests {
+
+using namespace nfd::name_tree;
+
+NDN_CXX_ASSERT_FORWARD_ITERATOR(NameTree::const_iterator);
+BOOST_CONCEPT_ASSERT((boost::ForwardRangeConcept<Range>));
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestNameTree, GlobalIoFixture)
@@ -54,6 +60,7 @@ BOOST_AUTO_TEST_CASE(ComputeHash)
 }
 
 BOOST_AUTO_TEST_SUITE(Hashtable)
+
 using name_tree::Hashtable;
 
 BOOST_AUTO_TEST_CASE(Modifiers)
@@ -254,7 +261,7 @@ BOOST_AUTO_TEST_CASE(TableEntries)
   npe.insertPitEntry(pit2);
   BOOST_CHECK_EQUAL(npe.getPitEntries().size(), 2);
 
-  pit::Entry* pit1ptr = pit1.get();
+  auto* pit1ptr = pit1.get();
   weak_ptr<pit::Entry> pit1weak(pit1);
   pit1.reset();
   BOOST_CHECK_EQUAL(pit1weak.use_count(), 1); // npe is the sole owner of pit1
@@ -335,7 +342,6 @@ BOOST_AUTO_TEST_CASE(Basic)
   Name name0("/does/not/exist");
   Entry* npe0 = nt.findExactMatch(name0);
   BOOST_CHECK(npe0 == nullptr);
-
 
   // findLongestPrefixMatch
 
@@ -419,7 +425,7 @@ BOOST_AUTO_TEST_CASE(Basic)
   BOOST_CHECK_EQUAL(nt.size(), 8);
 }
 
-/** \brief verify a NameTree enumeration contains expected entries
+/** \brief Verify a NameTree enumeration contains expected entries.
  *
  *  Example:
  *  \code
@@ -491,11 +497,9 @@ protected:
   }
 
 protected:
-  static const size_t N_BUCKETS = 16;
+  static constexpr size_t N_BUCKETS = 16;
   NameTree nt;
 };
-
-const size_t EnumerationFixture::N_BUCKETS;
 
 BOOST_FIXTURE_TEST_CASE(IteratorFullEnumerate, EnumerationFixture)
 {
@@ -554,7 +558,7 @@ BOOST_AUTO_TEST_CASE(OnlyA)
 
   // Accept "root" nameA only
   auto&& enumerable = nt.partialEnumerate("/a", [] (const Entry& entry) {
-    return std::make_pair(entry.getName() == "/a", true);
+    return std::pair(entry.getName() == "/a", true);
   });
 
   EnumerationVerifier(enumerable)
@@ -568,7 +572,7 @@ BOOST_AUTO_TEST_CASE(ExceptA)
 
   // Accept anything except "root" nameA
   auto&& enumerable = nt.partialEnumerate("/a", [] (const Entry& entry) {
-    return std::make_pair(entry.getName() != "/a", true);
+    return std::pair(entry.getName() != "/a", true);
   });
 
   EnumerationVerifier(enumerable)
@@ -584,7 +588,7 @@ BOOST_AUTO_TEST_CASE(NoNameANoSubTreeAB)
   // No NameA
   // No SubTree from NameAB
   auto&& enumerable = nt.partialEnumerate("/a", [] (const Entry& entry) {
-      return std::make_pair(entry.getName() != "/a", entry.getName() != "/a/b");
+      return std::pair(entry.getName() != "/a", entry.getName() != "/a/b");
     });
 
   EnumerationVerifier(enumerable)
@@ -602,7 +606,7 @@ BOOST_AUTO_TEST_CASE(NoNameANoSubTreeAC)
   // No NameA
   // No SubTree from NameAC
   auto&& enumerable = nt.partialEnumerate("/a", [] (const Entry& entry) {
-      return std::make_pair(entry.getName() != "/a", entry.getName() != "/a/c");
+      return std::pair(entry.getName() != "/a", entry.getName() != "/a/c");
     });
 
   EnumerationVerifier(enumerable)
@@ -619,7 +623,7 @@ BOOST_AUTO_TEST_CASE(NoSubTreeA)
 
   // No Subtree from NameA
   auto&& enumerable = nt.partialEnumerate("/a", [] (const Entry& entry) {
-      return std::make_pair(true, entry.getName() != "/a");
+      return std::pair(true, entry.getName() != "/a");
     });
 
   EnumerationVerifier(enumerable)
@@ -645,23 +649,20 @@ BOOST_AUTO_TEST_CASE(Example)
   nt.lookup("/E");
   nt.lookup("/F");
 
-  auto&& enumerable = nt.partialEnumerate("/A",
-    [] (const Entry& entry) {
-      bool visitEntry = false;
-      bool visitChildren = false;
+  auto&& enumerable = nt.partialEnumerate("/A", [] (const Entry& entry) {
+    bool visitEntry = false;
+    bool visitChildren = false;
 
-      Name name = entry.getName();
+    const Name& name = entry.getName();
+    if (name == "/" || name == "/A/B" || name == "/A/B/C" || name == "/A/D") {
+      visitEntry = true;
+    }
+    if (name == "/" || name == "/A" || name == "/F") {
+      visitChildren = true;
+    }
 
-      if (name == "/" || name == "/A/B" || name == "/A/B/C" || name == "/A/D") {
-        visitEntry = true;
-      }
-
-      if (name == "/" || name == "/A" || name == "/F") {
-        visitChildren = true;
-      }
-
-      return std::make_pair(visitEntry, visitChildren);
-    });
+    return std::pair(visitEntry, visitChildren);
+  });
 
   EnumerationVerifier(enumerable)
     .expect("/A/B")
@@ -767,6 +768,4 @@ BOOST_AUTO_TEST_CASE(SurvivedIteratorAfterErase)
 BOOST_AUTO_TEST_SUITE_END() // TestNameTree
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace name_tree
-} // namespace nfd
+} // namespace nfd::tests

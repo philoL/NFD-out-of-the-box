@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,11 +29,11 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/rib/create-route.hpp"
 
-namespace nfd {
-namespace rib {
-namespace tests {
+#include <boost/lexical_cast.hpp>
 
-using namespace nfd::tests;
+namespace nfd::tests {
+
+using rib::Route;
 
 BOOST_FIXTURE_TEST_SUITE(TestRib, GlobalIoFixture)
 
@@ -239,39 +239,37 @@ BOOST_AUTO_TEST_CASE(RibSignals)
   Route route1 = createRoute(1, 20, 10);
   Route route2 = createRoute(2, 30, 20);
 
-  RibRouteRef routeInfo;
-
   int nAfterInsertEntryInvocations = 0;
   int nAfterAddRouteInvocations = 0;
   int nBeforeRemoveRouteInvocations = 0;
   int nAfterEraseEntryInvocations = 0;
-  rib.afterInsertEntry.connect([&] (const Name& inName) {
-      BOOST_CHECK_EQUAL(nAfterInsertEntryInvocations, 0);
-      BOOST_CHECK_EQUAL(nAfterAddRouteInvocations, 0);
-      BOOST_CHECK(rib.find(name) != rib.end());
-      nAfterInsertEntryInvocations++;
-    });
+  rib.afterInsertEntry.connect([&] (const auto&) {
+    BOOST_CHECK_EQUAL(nAfterInsertEntryInvocations, 0);
+    BOOST_CHECK_EQUAL(nAfterAddRouteInvocations, 0);
+    BOOST_CHECK(rib.find(name) != rib.end());
+    nAfterInsertEntryInvocations++;
+  });
 
-  rib.afterAddRoute.connect([&] (const RibRouteRef& rrr) {
-      BOOST_CHECK_EQUAL(nAfterInsertEntryInvocations, 1);
-      BOOST_CHECK(rib.find(name) != rib.end());
-      BOOST_CHECK(rib.find(name, route) != nullptr);
-      nAfterAddRouteInvocations++;
-    });
+  rib.afterAddRoute.connect([&] (const auto&) {
+    BOOST_CHECK_EQUAL(nAfterInsertEntryInvocations, 1);
+    BOOST_CHECK(rib.find(name) != rib.end());
+    BOOST_CHECK(rib.find(name, route) != nullptr);
+    nAfterAddRouteInvocations++;
+  });
 
-  rib.beforeRemoveRoute.connect([&] (const RibRouteRef& rrr) {
-      BOOST_CHECK_EQUAL(nAfterEraseEntryInvocations, 0);
-      BOOST_CHECK(rib.find(name) != rib.end());
-      BOOST_CHECK(rib.find(name, route) != nullptr);
-      nBeforeRemoveRouteInvocations++;
-    });
+  rib.beforeRemoveRoute.connect([&] (const auto&) {
+    BOOST_CHECK_EQUAL(nAfterEraseEntryInvocations, 0);
+    BOOST_CHECK(rib.find(name) != rib.end());
+    BOOST_CHECK(rib.find(name, route) != nullptr);
+    nBeforeRemoveRouteInvocations++;
+  });
 
-  rib.afterEraseEntry.connect([&] (const Name& inName) {
-      BOOST_CHECK_EQUAL(nBeforeRemoveRouteInvocations, 2);
-      BOOST_CHECK_EQUAL(nAfterEraseEntryInvocations, 0);
-      BOOST_CHECK(rib.find(name) == rib.end());
-      nAfterEraseEntryInvocations++;
-    });
+  rib.afterEraseEntry.connect([&] (const auto&) {
+    BOOST_CHECK_EQUAL(nBeforeRemoveRouteInvocations, 2);
+    BOOST_CHECK_EQUAL(nAfterEraseEntryInvocations, 0);
+    BOOST_CHECK(rib.find(name) == rib.end());
+    nAfterEraseEntryInvocations++;
+  });
 
   route = route1;
   rib.insert(name, route);
@@ -300,17 +298,17 @@ BOOST_AUTO_TEST_CASE(Output)
 
   Route root = createRoute(1, 20);
   Name name1("/");
-  root.expires = nullopt;
+  root.expires = std::nullopt;
   rib.insert(name1, root);
 
   Route route1 = createRoute(2, 20);
   Name name2("/hello");
-  route1.expires = nullopt;
+  route1.expires = std::nullopt;
   rib.insert(name2, route1);
 
   Route route2 = createRoute(3, 20);
   Name name3("/hello/world");
-  route2.expires = nullopt;
+  route2.expires = std::nullopt;
   rib.insert(name3, route2);
 
   const std::string ribStr = std::string(R"TEXT(
@@ -333,6 +331,4 @@ RibEntry {
 
 BOOST_AUTO_TEST_SUITE_END() // TestRib
 
-} // namespace tests
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::tests

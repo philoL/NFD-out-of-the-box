@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,9 +29,7 @@
 #include "status-report.hpp"
 #include "command-parser.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 struct StatusReportOptions
 {
@@ -45,12 +43,12 @@ struct StatusReportOptions
   bool wantStrategyChoice = false;
 };
 
-/** \brief collect a status report and write to stdout
+/** \brief Collect a status report and write to stdout.
  */
 void
 reportStatus(ExecuteContext& ctx, const StatusReportOptions& options);
 
-/** \brief registers status commands
+/** \brief Registers status commands.
  *
  *  Providing the following commands:
  *  \li status report
@@ -63,8 +61,6 @@ reportStatus(ExecuteContext& ctx, const StatusReportOptions& options);
 void
 registerStatusCommands(CommandParser& parser);
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_STATUS_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,8 +25,7 @@
 
 #include "fib-entry.hpp"
 
-namespace nfd {
-namespace fib {
+namespace nfd::fib {
 
 Entry::Entry(const Name& prefix)
   : m_prefix(prefix)
@@ -62,7 +61,7 @@ Entry::addOrUpdateNextHop(Face& face, uint64_t cost)
   it->setCost(cost);
   this->sortNextHops();
 
-  return std::make_pair(it, isNew);
+  return {it, isNew};
 }
 
 bool
@@ -83,5 +82,4 @@ Entry::sortNextHops()
             [] (const NextHop& a, const NextHop& b) { return a.getCost() < b.getCost(); });
 }
 
-} // namespace fib
-} // namespace nfd
+} // namespace nfd::fib

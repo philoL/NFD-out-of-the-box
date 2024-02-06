@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,27 +32,19 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/limited-io.hpp"
 #include "tests/daemon/face/dummy-link-service.hpp"
+#include "tests/daemon/face/transport-test-common.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
 namespace ip = boost::asio::ip;
+using face::WebSocketTransport;
 
-/** \brief a fixture that accepts a single WebSocket connection from a client
+/** \brief A fixture that accepts a single WebSocket connection from a client.
  */
 class WebSocketTransportFixture : public GlobalIoFixture
 {
 protected:
-  WebSocketTransportFixture()
-    : transport(nullptr)
-    , serverReceivedPackets(nullptr)
-    , clientShouldPong(true)
-  {
-  }
-
-  /** \brief initialize server and start listening
+  /** \brief Initialize server and start listening.
    */
   void
   serverListen(const ip::tcp::endpoint& ep,
@@ -62,11 +54,11 @@ protected:
     server.clear_error_channels(websocketpp::log::elevel::all);
 
     server.init_asio(&g_io);
-    server.set_open_handler(bind(&WebSocketTransportFixture::serverHandleOpen, this, _1));
-    server.set_close_handler(bind(&WebSocketTransportFixture::serverHandleClose, this));
-    server.set_message_handler(bind(&WebSocketTransportFixture::serverHandleMessage, this, _2));
-    server.set_pong_handler(bind(&WebSocketTransportFixture::serverHandlePong, this));
-    server.set_pong_timeout_handler(bind(&WebSocketTransportFixture::serverHandlePongTimeout, this));
+    server.set_open_handler(std::bind(&WebSocketTransportFixture::serverHandleOpen, this, _1));
+    server.set_close_handler(std::bind(&WebSocketTransportFixture::serverHandleClose, this));
+    server.set_message_handler(std::bind(&WebSocketTransportFixture::serverHandleMessage, this, _2));
+    server.set_pong_handler(std::bind(&WebSocketTransportFixture::serverHandlePong, this));
+    server.set_pong_timeout_handler(std::bind(&WebSocketTransportFixture::serverHandlePongTimeout, this));
     server.set_pong_timeout(pongTimeout.count());
 
     server.set_reuse_addr(true);
@@ -75,7 +67,7 @@ protected:
     server.start_accept();
   }
 
-  /** \brief initialize client and connect to server
+  /** \brief Initialize client and connect to server.
    */
   void
   clientConnect(const std::string& uri)
@@ -84,9 +76,9 @@ protected:
     client.clear_error_channels(websocketpp::log::elevel::all);
 
     client.init_asio(&g_io);
-    client.set_open_handler(bind(&WebSocketTransportFixture::clientHandleOpen, this, _1));
-    client.set_message_handler(bind(&WebSocketTransportFixture::clientHandleMessage, this, _2));
-    client.set_ping_handler(bind(&WebSocketTransportFixture::clientHandlePing, this));
+    client.set_open_handler(std::bind(&WebSocketTransportFixture::clientHandleOpen, this, _1));
+    client.set_message_handler(std::bind(&WebSocketTransportFixture::clientHandleMessage, this, _2));
+    client.set_ping_handler(std::bind(&WebSocketTransportFixture::clientHandlePing, this));
 
     websocketpp::lib::error_code ec;
     auto con = client.get_connection(uri, ec);
@@ -95,10 +87,12 @@ protected:
     client.connect(con);
   }
 
-  /** \brief initialize both server and client, and have each other connected, create Transport
+  /**
+   * \brief Initialize both server and client, and have each other connected, create Transport.
    */
   void
-  initialize(ip::address address,
+  initialize(const shared_ptr<const ndn::net::NetworkInterface>&,
+             const ip::address& address,
              time::milliseconds pingInterval = 10_s,
              time::milliseconds pongTimeout = 1_s)
   {
@@ -109,12 +103,12 @@ protected:
     BOOST_REQUIRE_EQUAL(limitedIo.run(2, // serverHandleOpen, clientHandleOpen
                                       1_s), LimitedIo::EXCEED_OPS);
 
-    face = make_unique<Face>(make_unique<DummyLinkService>(),
-                             make_unique<WebSocketTransport>(serverHdl, server, pingInterval));
-    transport = static_cast<WebSocketTransport*>(face->getTransport());
-    serverReceivedPackets = &static_cast<DummyLinkService*>(face->getLinkService())->receivedPackets;
+    m_face = make_unique<Face>(make_unique<DummyLinkService>(),
+                               make_unique<WebSocketTransport>(serverHdl, server, pingInterval));
+    transport = static_cast<WebSocketTransport*>(m_face->getTransport());
+    serverReceivedPackets = &static_cast<DummyLinkService*>(m_face->getLinkService())->receivedPackets;
 
-    BOOST_REQUIRE_EQUAL(transport->getState(), TransportState::UP);
+    BOOST_REQUIRE_EQUAL(transport->getState(), face::TransportState::UP);
   }
 
 private:
@@ -202,20 +196,18 @@ protected:
   websocket::Server server;
   websocketpp::connection_hdl serverHdl;
   ip::tcp::endpoint remoteEp;
-  WebSocketTransport* transport;
-  std::vector<RxPacket>* serverReceivedPackets;
+  WebSocketTransport* transport = nullptr;
+  std::vector<RxPacket>* serverReceivedPackets = nullptr;
 
   websocket::Client client;
   websocketpp::connection_hdl clientHdl;
-  bool clientShouldPong;
+  bool clientShouldPong = true;
   std::vector<std::string> clientReceivedMessages;
 
 private:
-  unique_ptr<Face> face;
+  unique_ptr<Face> m_face;
 };
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FACE_WEBSOCKET_TRANSPORT_FIXTURE_HPP

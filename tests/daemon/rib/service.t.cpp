@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,14 +29,14 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/rib-io-fixture.hpp"
 
+#include <boost/asio/post.hpp>
 #include <boost/property_tree/info_parser.hpp>
+
 #include <sstream>
 
-namespace nfd {
-namespace rib {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using rib::Service;
 
 class RibServiceFixture : public RibIoFixture
 {
@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE(Basic)
   BOOST_CHECK_THROW(Service::get(), std::logic_error);
   BOOST_CHECK_THROW(Service(section, m_ribKeyChain), std::logic_error);
 
-  runOnRibIoService([&] {
+  boost::asio::post(getRibIoService(), [&] {
     {
       BOOST_CHECK_THROW(Service::get(), std::logic_error);
       Service ribService(section, m_ribKeyChain);
@@ -89,7 +89,7 @@ BOOST_AUTO_TEST_CASE(EmptyLocalhostSecurity)
     }
   )CONFIG";
 
-  runOnRibIoService([&] {
+  boost::asio::post(getRibIoService(), [&] {
     BOOST_CHECK_NO_THROW(Service(makeSection(CONFIG), m_ribKeyChain));
   });
   poll();
@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE(EmptyPrefixAnnouncementValidation)
     }
   )CONFIG";
 
-  runOnRibIoService([&] {
+  boost::asio::post(getRibIoService(), [&] {
     BOOST_CHECK_NO_THROW(Service(makeSection(CONFIG), m_ribKeyChain));
   });
   poll();
@@ -133,7 +133,7 @@ BOOST_AUTO_TEST_CASE(LocalhopAndPropagate)
     }
   )CONFIG";
 
-  runOnRibIoService([&] {
+  boost::asio::post(getRibIoService(), [&] {
     BOOST_CHECK_EXCEPTION(Service(makeSection(CONFIG), m_ribKeyChain), ConfigFile::Error,
                           [] (const auto& e) {
                             return e.what() == "localhop_security and auto_prefix_propagate "
@@ -147,6 +147,4 @@ BOOST_AUTO_TEST_SUITE_END() // ProcessConfig
 
 BOOST_AUTO_TEST_SUITE_END() // TestService
 
-} // namespace tests
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::tests

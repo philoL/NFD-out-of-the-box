@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,10 +27,13 @@
 #define NFD_DAEMON_FACE_CHANNEL_HPP
 
 #include "channel-log.hpp"
+#include "ethernet-protocol.hpp"
 #include "face-common.hpp"
+#include "udp-protocol.hpp"
 
-namespace nfd {
-namespace face {
+#include <functional>
+
+namespace nfd::face {
 
 /** \brief Represents a channel that listens on a local endpoint.
  *  \sa FaceSystem
@@ -38,34 +41,56 @@ namespace face {
  *  A channel can listen on a local endpoint and initiate outgoing connection from a local endpoint.
  *  A channel creates Face objects and retains shared ownership of them.
  */
-class Channel : noncopyable
+class Channel : public std::enable_shared_from_this<Channel>, noncopyable
 {
 public:
   virtual
   ~Channel();
 
   const FaceUri&
-  getUri() const
+  getUri() const noexcept
   {
     return m_uri;
   }
 
-  /** \brief Returns whether the channel is listening
+  /**
+   * \brief Returns the default MTU for all faces created by this channel.
+   */
+  size_t
+  getDefaultMtu() const noexcept
+  {
+    return m_defaultMtu;
+  }
+
+  /**
+   * \brief Returns whether the channel is listening.
    */
   virtual bool
   isListening() const = 0;
 
-  /** \brief Returns the number of faces in the channel
+  /**
+   * \brief Returns the number of faces in the channel.
    */
   virtual size_t
   size() const = 0;
 
+  virtual void
+  connect(const EndpointId& endpoint,
+          const FaceParams& faceParams,
+          const std::function<void(const shared_ptr<Face>&)>& onFaceCreated,
+          const std::function<void(uint32_t status, const std::string& reason)>& onConnectFailed,
+          time::nanoseconds timeout = 8_s) = 0;
+
 protected:
   void
-  setUri(const FaceUri& uri);
+  setUri(const FaceUri& uri) noexcept;
+
+  void
+  setDefaultMtu(size_t mtu) noexcept;
 
 private:
   FaceUri m_uri;
+  size_t m_defaultMtu = ndn::MAX_NDN_PACKET_SIZE;
 };
 
 /** \brief Prototype for the callback that is invoked when a face is created
@@ -87,7 +112,6 @@ using FaceCreationFailedCallback = std::function<void(uint32_t status, const std
 void
 connectFaceClosedSignal(Face& face, std::function<void()> f);
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_CHANNEL_HPP

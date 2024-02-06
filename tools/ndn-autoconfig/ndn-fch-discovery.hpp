@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,20 +28,18 @@
 
 #include "stage.hpp"
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
 /**
- * @brief Discovery NDN hub using NDN-FCH protocol
+ * @brief Discover NDN hub using NDN-FCH protocol.
  *
- * @see https://github.com/cawka/ndn-fch/blob/master/README.md
+ * @see https://github.com/named-data/ndn-fch/blob/master/README.md
  */
 class NdnFchDiscovery : public Stage
 {
 public:
   /**
-   * @brief Create stage to discover NDN hub using NDN-FCH protocol
+   * @brief Create stage to discover NDN hub using NDN-FCH protocol.
    */
   explicit
   NdnFchDiscovery(const std::string& url);
@@ -61,8 +59,6 @@ private:
   std::string m_url;
 };
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig
 
 #endif // NFD_TOOLS_NDN_AUTOCONFIG_NDN_FCH_DISCOVERY_HPP

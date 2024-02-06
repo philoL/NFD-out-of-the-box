@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,20 +30,19 @@
 
 #include <ndn-cxx/lp/packet.hpp>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-/** \brief fragments network-layer packets into NDNLPv2 link-layer packets
+/** \brief Fragments network-layer packets into NDNLPv2 link-layer packets.
  *  \sa https://redmine.named-data.net/projects/nfd/wiki/NDNLPv2
  */
 class LpFragmenter
 {
 public:
-  /** \brief Options that control the behavior of LpFragmenter
+  /** \brief %Options that control the behavior of LpFragmenter.
    */
   struct Options
   {
-    /** \brief maximum number of fragments in a packet
+    /** \brief Maximum number of fragments in a packet.
      */
     size_t nMaxFragments = 400;
   };
@@ -51,7 +50,7 @@ public:
   explicit
   LpFragmenter(const Options& options, const LinkService* linkService = nullptr);
 
-  /** \brief set options for fragmenter
+  /** \brief Set options for fragmenter.
    */
   void
   setOptions(const Options& options);
@@ -63,7 +62,7 @@ public:
   const LinkService*
   getLinkService() const;
 
-  /** \brief fragments a network-layer packet into link-layer packets
+  /** \brief Fragments a network-layer packet into link-layer packets.
    *  \param packet an LpPacket that contains a network-layer packet;
    *                must have Fragment field, must not have FragIndex and FragCount fields
    *  \param mtu maximum allowable LpPacket size after fragmentation and sequence number assignment
@@ -80,7 +79,6 @@ private:
 std::ostream&
 operator<<(std::ostream& os, const FaceLogHelper<LpFragmenter>& flh);
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_LP_FRAGMENTER_HPP

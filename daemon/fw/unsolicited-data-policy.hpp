@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2016,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,10 +28,14 @@
 
 #include "face/face.hpp"
 
-namespace nfd {
-namespace fw {
+#include <functional>
+#include <map>
+#include <set>
 
-/** \brief a decision made by UnsolicitedDataPolicy
+namespace nfd::fw {
+
+/**
+ * \brief Decision made by UnsolicitedDataPolicy
  */
 enum class UnsolicitedDataDecision {
   DROP, ///< the Data should be dropped
@@ -41,11 +45,12 @@ enum class UnsolicitedDataDecision {
 std::ostream&
 operator<<(std::ostream& os, UnsolicitedDataDecision d);
 
-/** \brief determines how to process an unsolicited Data
+/**
+ * \brief Determines how to process an unsolicited Data packet
  *
- *  An incoming Data is unsolicited if it does not match any PIT entry.
- *  This class assists forwarding pipelines to decide whether to drop an unsolicited Data
- *  or admit it into the ContentStore.
+ * An incoming Data packet is *unsolicited* if it does not match any PIT entry.
+ * This class assists forwarding pipelines to decide whether to drop an unsolicited Data
+ * or admit it into the ContentStore.
  */
 class UnsolicitedDataPolicy : noncopyable
 {
@@ -59,11 +64,11 @@ public:
 public: // registry
   template<typename P>
   static void
-  registerPolicy(const std::string& policyName = P::POLICY_NAME)
+  registerPolicy(std::string_view policyName = P::POLICY_NAME)
   {
-    Registry& registry = getRegistry();
-    BOOST_ASSERT(registry.count(policyName) == 0);
-    registry[policyName] = [] { return make_unique<P>(); };
+    BOOST_ASSERT(!policyName.empty());
+    auto r = getRegistry().insert_or_assign(std::string(policyName), [] { return make_unique<P>(); });
+    BOOST_VERIFY(r.second);
   }
 
   /** \return an UnsolicitedDataPolicy identified by \p policyName,
@@ -78,71 +83,76 @@ public: // registry
   getPolicyNames();
 
 private:
-  typedef std::function<unique_ptr<UnsolicitedDataPolicy>()> CreateFunc;
-  typedef std::map<std::string, CreateFunc> Registry; // indexed by policy name
+  using CreateFunc = std::function<unique_ptr<UnsolicitedDataPolicy>()>;
+  using Registry = std::map<std::string, CreateFunc>; // indexed by policy name
 
   static Registry&
   getRegistry();
 };
 
-/** \brief drops all unsolicited Data
+/**
+ * \brief Drops all unsolicited Data
  */
-class DropAllUnsolicitedDataPolicy : public UnsolicitedDataPolicy
+class DropAllUnsolicitedDataPolicy final : public UnsolicitedDataPolicy
 {
 public:
   UnsolicitedDataDecision
   decide(const Face& inFace, const Data& data) const final;
 
 public:
-  static const std::string POLICY_NAME;
+  static constexpr std::string_view POLICY_NAME{"drop-all"};
 };
 
-/** \brief admits unsolicited Data from local faces
+/**
+ * \brief Admits unsolicited Data from local faces
  */
-class AdmitLocalUnsolicitedDataPolicy : public UnsolicitedDataPolicy
+class AdmitLocalUnsolicitedDataPolicy final : public UnsolicitedDataPolicy
 {
 public:
   UnsolicitedDataDecision
   decide(const Face& inFace, const Data& data) const final;
 
 public:
-  static const std::string POLICY_NAME;
+  static constexpr std::string_view POLICY_NAME{"admit-local"};
 };
 
-/** \brief admits unsolicited Data from non-local faces
+/**
+ * \brief Admits unsolicited Data from non-local faces
  */
-class AdmitNetworkUnsolicitedDataPolicy : public UnsolicitedDataPolicy
+class AdmitNetworkUnsolicitedDataPolicy final : public UnsolicitedDataPolicy
 {
 public:
   UnsolicitedDataDecision
   decide(const Face& inFace, const Data& data) const final;
 
 public:
-  static const std::string POLICY_NAME;
+  static constexpr std::string_view POLICY_NAME{"admit-network"};
 };
 
-/** \brief admits all unsolicited Data
+/**
+ * \brief Admits all unsolicited Data
  */
-class AdmitAllUnsolicitedDataPolicy : public UnsolicitedDataPolicy
+class AdmitAllUnsolicitedDataPolicy final : public UnsolicitedDataPolicy
 {
 public:
   UnsolicitedDataDecision
   decide(const Face& inFace, const Data& data) const final;
 
 public:
-  static const std::string POLICY_NAME;
+  static constexpr std::string_view POLICY_NAME{"admit-all"};
 };
 
-/** \brief the default UnsolicitedDataPolicy
+/**
+ * \brief The default UnsolicitedDataPolicy
  */
-typedef DropAllUnsolicitedDataPolicy DefaultUnsolicitedDataPolicy;
+using DefaultUnsolicitedDataPolicy = DropAllUnsolicitedDataPolicy;
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
-/** \brief registers an unsolicited data policy
- *  \param P a subclass of nfd::fw::UnsolicitedDataPolicy;
- *           P::POLICY_NAME must be a string that contains policy name
+/**
+ * \brief Registers an unsolicited data policy.
+ * \param P A subclass of nfd::fw::UnsolicitedDataPolicy. \p P must have a static const data
+ *          member `POLICY_NAME` convertible to std::string_view that contains the policy name.
  */
 #define NFD_REGISTER_UNSOLICITED_DATA_POLICY(P)                     \
 static class NfdAuto ## P ## UnsolicitedDataPolicyRegistrationClass \

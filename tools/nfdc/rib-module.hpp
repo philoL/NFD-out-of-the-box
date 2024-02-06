@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,48 +29,49 @@
 #include "module.hpp"
 #include "command-parser.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/rib-entry.hpp>
+
+namespace nfd::tools::nfdc {
 
 using ndn::nfd::RibEntry;
 using ndn::nfd::Route;
 
-/** \brief provides access to NFD RIB management
- *  \sa https://redmine.named-data.net/projects/nfd/wiki/RibMgmt
+/**
+ * \brief Provides access to NFD RIB management.
+ * \sa https://redmine.named-data.net/projects/nfd/wiki/RibMgmt
  */
-class RibModule : public Module, noncopyable
+class RibModule : public Module, boost::noncopyable
 {
 public:
-  /** \brief register 'route list', 'route show', 'route add', 'route remove' commands
+  /** \brief Register 'route list', 'route show', 'route add', 'route remove' commands.
    */
   static void
   registerCommands(CommandParser& parser);
 
-  /** \brief the 'route list' command
+  /** \brief The 'route list' command.
    */
   static void
   list(ExecuteContext& ctx);
 
-  /** \brief the 'route show' command
+  /** \brief The 'route show' command.
    */
   static void
   show(ExecuteContext& ctx);
 
-  /** \brief the 'route add' command
+  /** \brief The 'route add' command.
    */
   static void
   add(ExecuteContext& ctx);
 
-  /** \brief the 'route remove' command
+  /** \brief The 'route remove' command.
    */
   static void
   remove(ExecuteContext& ctx);
 
   void
-  fetchStatus(Controller& controller,
+  fetchStatus(ndn::nfd::Controller& controller,
               const std::function<void()>& onSuccess,
-              const Controller::DatasetFailCallback& onFailure,
+              const ndn::nfd::DatasetFailureCallback& onFailure,
               const CommandOptions& options) override;
 
   void
@@ -85,21 +86,21 @@ private:
   static void
   listRoutesImpl(ExecuteContext& ctx, const RoutePredicate& filter);
 
-  /** \brief format a single status item as XML
+  /** \brief Format a single status item as XML.
    *  \param os output stream
    *  \param item status item
    */
   void
   formatItemXml(std::ostream& os, const RibEntry& item) const;
 
-  /** \brief format a RibEntry as text
+  /** \brief Format a RibEntry as text.
    *  \param os output stream
    *  \param entry RIB entry
    */
   static void
   formatEntryText(std::ostream& os, const RibEntry& entry);
 
-  /** \brief format a Route as text
+  /** \brief Format a Route as text.
    *  \param os output stream
    *  \param entry RIB entry
    *  \param route RIB route within \p entry
@@ -113,8 +114,6 @@ private:
   std::vector<RibEntry> m_status;
 };
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_RIB_MODULE_HPP

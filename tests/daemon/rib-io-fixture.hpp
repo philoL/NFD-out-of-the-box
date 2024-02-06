@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,10 +32,10 @@
 #include <mutex>
 #include <thread>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
-/** \brief A base test fixture that provides both main and RIB io_service.
+/**
+ * \brief A base test fixture that provides both main and RIB io_context.
  */
 class RibIoFixture : public GlobalIoFixture
 {
@@ -45,27 +45,31 @@ protected:
   ~RibIoFixture();
 
 protected:
-  /** \brief Poll main and RIB thread io_service to process all pending I/O events.
+  /**
+   * \brief Poll main and RIB thread io_context to process all pending I/O events.
    *
    * This call will execute all pending I/O events, including events that are posted
-   * inside the processing event, i.e., main and RIB thread io_service will be polled
+   * inside the processing event, i.e., main and RIB thread io_context will be polled
    * repeatedly until all pending events are processed.
    *
-   * \warning Must be called from the main thread
+   * \warning Must be called from the main thread.
    */
   void
   poll();
 
 protected:
-  /** \brief pointer to global main io_service
+  /**
+   * \brief Pointer to global main io_context.
    */
-  boost::asio::io_service* g_mainIo = nullptr;
+  boost::asio::io_context* g_mainIo = nullptr;
 
-  /** \brief pointer to global RIB io_service
+  /**
+   * \brief Pointer to global RIB io_context.
    */
-  boost::asio::io_service* g_ribIo = nullptr;
+  boost::asio::io_context* g_ribIo = nullptr;
 
-  /** \brief global RIB thread
+  /**
+   * \brief Global RIB thread.
    */
   std::thread g_ribThread;
 
@@ -77,19 +81,16 @@ private:
   std::condition_variable m_ribPollEndCv;
 };
 
-/** \brief RibIoFixture that also overrides steady clock and system clock.
+/**
+ * \brief RibIoFixture that also overrides steady clock and system clock.
  */
-class RibIoTimeFixture : public RibIoFixture, public ClockFixture
+class RibIoTimeFixture : public ClockFixture, public RibIoFixture
 {
-protected:
-  RibIoTimeFixture();
-
 private:
   void
-  pollAfterClockTick() override;
+  afterTick() final;
 };
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_RIB_IO_FIXTURE_HPP

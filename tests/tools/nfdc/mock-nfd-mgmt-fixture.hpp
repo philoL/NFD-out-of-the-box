@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,19 +28,18 @@
 
 #include "tests/tools/mock-nfd-mgmt-fixture.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+#include <ndn-cxx/mgmt/nfd/face-query-filter.hpp>
+#include <ndn-cxx/mgmt/nfd/face-status.hpp>
 
-using namespace nfd::tests;
+namespace nfd::tools::nfdc::tests {
 
-/** \brief fixture to emulate NFD management
+/**
+ * \brief Fixture to emulate NFD management.
  */
-class MockNfdMgmtFixture : public nfd::tools::tests::MockNfdMgmtFixture
+class MockNfdMgmtFixture : public nfd::tests::MockNfdMgmtFixture
 {
 protected:
-  /** \brief respond to specific FaceQuery requests
+  /** \brief Respond to FaceQuery requests.
    *  \retval true the Interest matches one of the defined patterns and is responded
    *  \retval false the Interest is not responded
    */
@@ -54,8 +53,8 @@ protected:
     if (!Name("/localhost/nfd/faces/query").isPrefixOf(interest.getName())) {
       return false;
     }
-    BOOST_CHECK_EQUAL(interest.getName().size(), 5);
-    FaceQueryFilter filter(interest.getName().at(4).blockFromValue());
+    BOOST_REQUIRE_EQUAL(interest.getName().size(), 5);
+    FaceQueryFilter filter(interest.getName()[-1].blockFromValue());
 
     if (filter == FaceQueryFilter().setFaceId(10156)) {
       FaceStatus faceStatus;
@@ -96,13 +95,12 @@ protected:
       return true;
     }
 
+    // Return empty dataset
+    this->sendEmptyDataset(interest.getName());
     return false;
   }
 };
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests
 
 #endif // NFD_TESTS_TOOLS_NFDC_MOCK_NFD_MGMT_FIXTURE_HPP

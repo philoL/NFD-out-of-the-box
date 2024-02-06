@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,13 +28,11 @@
 
 #include "fib-nexthop.hpp"
 
-namespace nfd {
-
-namespace name_tree {
+namespace nfd::name_tree {
 class Entry;
-} // namespace name_tree
+} // namespace nfd::name_tree
 
-namespace fib {
+namespace nfd::fib {
 
 class Fib;
 
@@ -48,7 +46,9 @@ class Fib;
  */
 using NextHopList = std::vector<NextHop>;
 
-/** \brief represents a FIB entry
+/**
+ * \brief Represents an entry in the FIB.
+ * \sa Fib
  */
 class Entry : noncopyable
 {
@@ -82,7 +82,7 @@ public:
   hasNextHop(const Face& face) const;
 
 private:
-  /** \brief adds a NextHop record to the entry
+  /** \brief Adds a NextHop record to the entry.
    *
    *  If a NextHop record for \p face already exists in the entry, its cost is set to \p cost.
    *
@@ -92,7 +92,7 @@ private:
   std::pair<NextHopList::iterator, bool>
   addOrUpdateNextHop(Face& face, uint64_t cost);
 
-  /** \brief removes a NextHop record
+  /** \brief Removes a NextHop record.
    *
    *  If no NextHop record for face exists, do nothing.
    */
@@ -104,7 +104,7 @@ private:
   NextHopList::iterator
   findNextHop(const Face& face);
 
-  /** \brief sorts the nexthop list
+  /** \brief Sorts the nexthop list.
    */
   void
   sortNextHops();
@@ -115,11 +115,10 @@ private:
 
   name_tree::Entry* m_nameTreeEntry = nullptr;
 
-  friend class name_tree::Entry;
-  friend class Fib;
+  friend ::nfd::name_tree::Entry;
+  friend Fib;
 };
 
-} // namespace fib
-} // namespace nfd
+} // namespace nfd::fib
 
 #endif // NFD_DAEMON_TABLE_FIB_ENTRY_HPP

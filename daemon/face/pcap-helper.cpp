@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,6 +26,8 @@
 #include "pcap-helper.hpp"
 #include "ethernet-protocol.hpp"
 
+#include "common/privilege-helper.hpp"
+
 #include <pcap/pcap.h>
 #include <unistd.h>
 
@@ -33,11 +35,9 @@
 #define PCAP_NETMASK_UNKNOWN  0xffffffff
 #endif
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 PcapHelper::PcapHelper(const std::string& interfaceName)
-  : m_pcap(nullptr)
 {
   char errbuf[PCAP_ERRBUF_SIZE] = {};
   m_pcap = pcap_create(interfaceName.data(), errbuf);
@@ -55,7 +55,7 @@ PcapHelper::PcapHelper(const std::string& interfaceName)
   pcap_set_buffer_size(m_pcap, 4 * 1024 * 1024);
 }
 
-PcapHelper::~PcapHelper()
+PcapHelper::~PcapHelper() noexcept
 {
   close();
 }
@@ -63,9 +63,15 @@ PcapHelper::~PcapHelper()
 void
 PcapHelper::activate(int dlt)
 {
-  int ret = pcap_activate(m_pcap);
-  if (ret < 0)
-    NDN_THROW(Error("pcap_activate: " + std::string(pcap_statustostr(ret))));
+  PrivilegeHelper::runElevated([this] {
+    int ret = pcap_activate(m_pcap);
+    if (ret < 0)
+      NDN_THROW(Error("pcap_activate: " + std::string(pcap_statustostr(ret))));
+  });
+
+  char errbuf[PCAP_ERRBUF_SIZE] = {};
+  if (pcap_setnonblock(m_pcap, 1, errbuf) < 0)
+    NDN_THROW(Error("pcap_setnonblock: " + std::string(errbuf)));
 
   if (pcap_set_datalink(m_pcap, dlt) < 0)
     NDN_THROW(Error("pcap_set_datalink: " + getLastError()));
@@ -75,7 +81,7 @@ PcapHelper::activate(int dlt)
 }
 
 void
-PcapHelper::close()
+PcapHelper::close() noexcept
 {
   if (m_pcap) {
     pcap_close(m_pcap);
@@ -96,7 +102,7 @@ PcapHelper::getFd() const
 }
 
 std::string
-PcapHelper::getLastError() const
+PcapHelper::getLastError() const noexcept
 {
   return pcap_geterr(m_pcap);
 }
@@ -124,20 +130,19 @@ PcapHelper::setPacketFilter(const char* filter) const
     NDN_THROW(Error("pcap_setfilter: " + getLastError()));
 }
 
-std::tuple<const uint8_t*, size_t, std::string>
-PcapHelper::readNextPacket() const
+std::tuple<span<const uint8_t>, std::string>
+PcapHelper::readNextPacket() const noexcept
 {
   pcap_pkthdr* header;
   const uint8_t* packet;
 
   int ret = pcap_next_ex(m_pcap, &header, &packet);
   if (ret < 0)
-    return std::make_tuple(nullptr, 0, getLastError());
+    return {span<uint8_t>{}, getLastError()};
   else if (ret == 0)
-    return std::make_tuple(nullptr, 0, "timed out");
+    return {span<uint8_t>{}, "Nothing to read"};
   else
-    return std::make_tuple(packet, header->caplen, "");
+    return {{packet, header->caplen}, ""};
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

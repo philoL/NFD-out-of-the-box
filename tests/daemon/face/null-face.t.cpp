@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,13 +27,11 @@
 #include "face/null-transport.hpp"
 
 #include "tests/daemon/global-io-fixture.hpp"
-#include "transport-test-common.hpp"
+#include "tests/daemon/face/transport-test-common.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_FIXTURE_TEST_SUITE(TestNullFace, GlobalIoFixture)
@@ -58,7 +56,7 @@ BOOST_AUTO_TEST_CASE(ExpirationTime)
 {
   auto transport = make_unique<NullTransport>();
 
-  BOOST_CHECK_EQUAL(transport->getExpirationTime(), time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(transport->getExpirationTime(), time::steady_clock::time_point::max());
 }
 
 BOOST_AUTO_TEST_CASE(SendQueue)
@@ -74,10 +72,10 @@ BOOST_AUTO_TEST_CASE(Send)
   auto face = makeNullFace();
   BOOST_CHECK_EQUAL(face->getState(), FaceState::UP);
 
-  face->sendInterest(*makeInterest("/A"), 0);
+  face->sendInterest(*makeInterest("/A"));
   BOOST_CHECK_EQUAL(face->getState(), FaceState::UP);
 
-  face->sendData(*makeData("/B"), 0);
+  face->sendData(*makeData("/B"));
   BOOST_CHECK_EQUAL(face->getState(), FaceState::UP);
 }
 
@@ -102,6 +100,4 @@ BOOST_AUTO_TEST_CASE(Close)
 BOOST_AUTO_TEST_SUITE_END() // TestNullFace
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

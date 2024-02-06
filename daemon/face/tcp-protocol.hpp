@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,13 +23,17 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "scope-prefix.hpp"
+#ifndef NFD_DAEMON_FACE_TCP_PROTOCOL_HPP
+#define NFD_DAEMON_FACE_TCP_PROTOCOL_HPP
+
+#include "core/common.hpp"
 
 namespace nfd {
-namespace scope_prefix {
+namespace tcp {
 
-const Name LOCALHOST("ndn:/localhost");
-const Name LOCALHOP("ndn:/localhop");
+typedef boost::asio::ip::tcp::endpoint Endpoint;
 
-} // namespace scope_prefix
+} // namespace tcp
 } // namespace nfd
+
+#endif // NFD_DAEMON_FACE_TCP_PROTOCOL_HPP

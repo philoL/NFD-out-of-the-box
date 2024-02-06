@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,10 +27,9 @@
 
 #include "tests/test-common.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+#include <boost/lexical_cast.hpp>
+
+namespace nfd::tools::nfdc::tests {
 
 BOOST_AUTO_TEST_SUITE(Nfdc)
 BOOST_AUTO_TEST_SUITE(TestCommandParser)
@@ -107,8 +106,8 @@ BOOST_AUTO_TEST_CASE(Basic)
   std::tie(noun, verb, ca, execute) = parser.parse({"route", "add", "/n", "300"}, ParseMode::ONE_SHOT);
   BOOST_CHECK_EQUAL(noun, "route");
   BOOST_CHECK_EQUAL(verb, "add");
-  BOOST_CHECK_EQUAL(ndn::any_cast<Name>(ca.at("prefix")), "/n");
-  BOOST_CHECK_EQUAL(ndn::any_cast<uint64_t>(ca.at("nexthop")), 300);
+  BOOST_CHECK_EQUAL(std::any_cast<Name>(ca.at("prefix")), "/n");
+  BOOST_CHECK_EQUAL(std::any_cast<uint64_t>(ca.at("nexthop")), 300);
 
   std::tie(noun, verb, ca, execute) = parser.parse({"route", "add2", "/n", "300"}, ParseMode::ONE_SHOT);
   BOOST_CHECK_EQUAL(noun, "route");
@@ -117,7 +116,7 @@ BOOST_AUTO_TEST_CASE(Basic)
   std::tie(noun, verb, ca, execute) = parser.parse({"route", "list", "400"}, ParseMode::ONE_SHOT);
   BOOST_CHECK_EQUAL(noun, "route");
   BOOST_CHECK_EQUAL(verb, "list");
-  BOOST_CHECK_EQUAL(ndn::any_cast<uint64_t>(ca.at("nexthop")), 400);
+  BOOST_CHECK_EQUAL(std::any_cast<uint64_t>(ca.at("nexthop")), 400);
 
   BOOST_CHECK_THROW(parser.parse({}, ParseMode::ONE_SHOT),
                     CommandParser::NoSuchCommandError);
@@ -138,7 +137,4 @@ BOOST_AUTO_TEST_CASE(Basic)
 BOOST_AUTO_TEST_SUITE_END() // TestCommandParser
 BOOST_AUTO_TEST_SUITE_END() // Nfdc
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests

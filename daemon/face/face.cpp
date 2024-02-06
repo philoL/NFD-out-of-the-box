@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,8 +25,7 @@
 
 #include "face.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 Face::Face(unique_ptr<LinkService> service, unique_ptr<Transport> transport)
   : afterReceiveInterest(service->afterReceiveInterest)
@@ -34,7 +33,6 @@ Face::Face(unique_ptr<LinkService> service, unique_ptr<Transport> transport)
   , afterReceiveNack(service->afterReceiveNack)
   , onDroppedInterest(service->onDroppedInterest)
   , afterStateChange(transport->afterStateChange)
-  , m_id(INVALID_FACEID)
   , m_service(std::move(service))
   , m_transport(std::move(transport))
   , m_counters(m_service->getCounters(), m_transport->getCounters())
@@ -52,5 +50,4 @@ operator<<(std::ostream& os, const FaceLogHelper<Face>& flh)
   return os;
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,18 +32,16 @@
 #include <cstring>
 #include <unistd.h>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 NDN_LOG_INIT(nfdc.Help);
 
-const int LIST_COMMAND_NAME_COLUMN_WIDTH = 16;
+constexpr int LIST_COMMAND_NAME_COLUMN_WIDTH = 16;
 
 void
-helpList(std::ostream& os, const CommandParser& parser, ParseMode mode, const std::string& noun)
+helpList(std::ostream& os, const CommandParser& parser, ParseMode mode, std::string_view noun)
 {
-  os << "nfdc [-h|--help] [-V|--version] <command> [<args>]\n\n";
+  os << "nfdc [-h|--help] [-V|--version] [-f|--batch <batch-file>] [<command> [<args>]]\n\n";
   if (noun.empty()) {
     os << "All subcommands:\n";
   }
@@ -70,7 +68,7 @@ helpList(std::ostream& os, const CommandParser& parser, ParseMode mode, const st
 static void
 helpCommand(const std::string& noun, const std::string& verb)
 {
-  std::string manpage = "nfdc-" + noun;
+  const std::string manpage = "nfdc-" + noun;
 
   ::execlp("man", "man", manpage.data(), nullptr);
   NDN_LOG_FATAL("Error opening man page for " << manpage << ": " << std::strerror(errno));
@@ -79,7 +77,7 @@ helpCommand(const std::string& noun, const std::string& verb)
 int
 help(std::ostream& os, const CommandParser& parser, std::vector<std::string> args)
 {
-  const auto helpOpts = {"help", "--help", "-h"};
+  const auto helpOpts = {"help"sv, "--help"sv, "-h"sv};
   auto it = std::find_first_of(args.begin(), args.end(), helpOpts.begin(), helpOpts.end());
   if (it == args.end())
     return 2;
@@ -98,6 +96,4 @@ help(std::ostream& os, const CommandParser& parser, std::vector<std::string> arg
   }
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

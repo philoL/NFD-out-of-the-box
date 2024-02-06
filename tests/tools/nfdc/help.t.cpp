@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,10 +27,9 @@
 
 #include "tests/test-common.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+#include <boost/test/tools/output_test_stream.hpp>
+
+namespace nfd::tools::nfdc::tests {
 
 BOOST_AUTO_TEST_SUITE(Nfdc)
 BOOST_AUTO_TEST_SUITE(TestHelp)
@@ -41,7 +40,7 @@ BOOST_AUTO_TEST_CASE(Basic)
   ExecuteCommand dummyExecute = [] (ExecuteContext&) { BOOST_ERROR("should not be called"); };
 
   boost::test_tools::output_test_stream out;
-  const std::string header("nfdc [-h|--help] [-V|--version] <command> [<args>]\n\n");
+  const std::string header("nfdc [-h|--help] [-V|--version] [-f|--batch <batch-file>] [<command> [<args>]]\n\n");
   const std::string trailer("\nSee 'nfdc help <command>' to read about a specific subcommand.\n");
 
   helpList(out, parser);
@@ -98,7 +97,4 @@ BOOST_AUTO_TEST_CASE(Basic)
 BOOST_AUTO_TEST_SUITE_END() // TestCommandParser
 BOOST_AUTO_TEST_SUITE_END() // Nfdc
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests

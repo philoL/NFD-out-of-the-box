@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,11 +28,9 @@
 
 #include "command-parser.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
-/** \brief writes the list of available commands to a stream
+/** \brief Writes the list of available commands to a stream.
  *  \param os the output stream to write the list to
  *  \param parser instance of CommandParser containing the commands to list
  *  \param mode only the commands available in this mode are listed
@@ -40,9 +38,9 @@ namespace nfdc {
  */
 void
 helpList(std::ostream& os, const CommandParser& parser,
-         ParseMode mode = ParseMode::ONE_SHOT, const std::string& noun = "");
+         ParseMode mode = ParseMode::ONE_SHOT, std::string_view noun = "");
 
-/** \brief tries to help the user, if requested on the command line
+/** \brief Tries to help the user, if requested on the command line.
  *
  *  Depending on the provided command line arguments \p args, this function can either
  *  open the man page for a specific command, or list all commands available in \p parser.
@@ -56,8 +54,6 @@ int
 help(std::ostream& os, const CommandParser& parser,
      std::vector<std::string> args);
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc
 
 #endif // NFD_TOOLS_NFDC_HELP_HPP

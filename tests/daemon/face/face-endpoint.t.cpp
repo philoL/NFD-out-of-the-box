@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2015,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,36 +23,40 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NFD_CORE_ALGORITHM_HPP
-#define NFD_CORE_ALGORITHM_HPP
+#include "face/face-endpoint.hpp"
 
-#include "common.hpp"
-#include <boost/concept/requires.hpp>
+#include "tests/test-common.hpp"
+#include "dummy-face.hpp"
 
-namespace nfd {
+#include <boost/lexical_cast.hpp>
 
-/** \brief finds the last element satisfying a predicate
- *  \tparam It BidirectionalIterator
- *  \tparam Pred UnaryPredicate
- *
- *  \return Iterator to the last element satisfying the condition,
- *          or \p last if no such element is found.
- *
- *  Complexity: at most \p last-first invocations of \p p
- */
-template<typename It, typename Pred>
-BOOST_CONCEPT_REQUIRES(
-  ((boost::BidirectionalIterator<It>))
-  ((boost::UnaryPredicate<Pred, typename std::iterator_traits<It>::value_type>)),
-  (It)
-)
-find_last_if(It first, It last, Pred p)
+namespace nfd::tests {
+
+using namespace nfd::face;
+
+BOOST_AUTO_TEST_SUITE(Face)
+BOOST_AUTO_TEST_SUITE(TestFaceEndpoint)
+
+BOOST_AUTO_TEST_CASE(Print)
 {
-  std::reverse_iterator<It> firstR(first), lastR(last);
-  auto found = std::find_if(lastR, firstR, p);
-  return found == firstR ? last : std::prev(found.base());
+  DummyFace face;
+  FaceEndpoint faceEndpoint1(face);
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(faceEndpoint1), "0");
+
+  ethernet::Address ethEp{0x01, 0x00, 0x5e, 0x90, 0x10, 0x01};
+  FaceEndpoint faceEndpoint2(face, ethEp);
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(faceEndpoint2), "(0, 01:00:5e:90:10:01)");
+
+  udp::Endpoint udp4Ep{boost::asio::ip::address_v4(0xe00017aa), 56363};
+  FaceEndpoint faceEndpoint3(face, udp4Ep);
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(faceEndpoint3), "(0, 224.0.23.170:56363)");
+
+  udp::Endpoint udp6Ep{boost::asio::ip::address_v6::loopback(), 12345};
+  FaceEndpoint faceEndpoint4(face, udp6Ep);
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(faceEndpoint4), "(0, [::1]:12345)");
 }
 
-} // namespace nfd
+BOOST_AUTO_TEST_SUITE_END() // TestFaceEndpoint
+BOOST_AUTO_TEST_SUITE_END() // Face
 
-#endif // NFD_CORE_ALGORITHM_HPP
+} // namespace nfd::tests

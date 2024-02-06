@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,26 +28,26 @@
 
 #include "stream-transport.hpp"
 
-#ifndef HAVE_UNIX_SOCKETS
+#include <boost/asio/local/stream_protocol.hpp>
+
+#ifndef NFD_HAVE_UNIX_SOCKETS
 #error "Cannot include this file when UNIX sockets are not available"
 #endif
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_MEMBER_DECL_SPECIALIZED(StreamTransport<boost::asio::local::stream_protocol>);
 
 /**
- * \brief A Transport that communicates on a stream-oriented Unix domain socket
+ * \brief A Transport that communicates on a stream-oriented Unix domain socket.
  */
 class UnixStreamTransport final : public StreamTransport<boost::asio::local::stream_protocol>
 {
 public:
   explicit
-  UnixStreamTransport(protocol::socket&& socket);
+  UnixStreamTransport(boost::asio::local::stream_protocol::socket&& socket);
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_UNIX_STREAM_TRANSPORT_HPP

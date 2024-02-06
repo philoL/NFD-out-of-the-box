@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,10 +30,12 @@
 #include "rib/rib.hpp"
 #include "table/fib.hpp"
 
+#include <boost/asio/defer.hpp>
+
 #include <ndn-cxx/lp/tags.hpp>
-#include <ndn-cxx/mgmt/nfd/face-status.hpp>
 #include <ndn-cxx/mgmt/nfd/rib-entry.hpp>
-#include <ndn-cxx/security/v2/certificate-fetcher-direct-fetch.hpp>
+#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
+#include <ndn-cxx/security/certificate-fetcher-direct-fetch.hpp>
 
 namespace nfd {
 
@@ -42,11 +44,9 @@ using rib::Route;
 
 NFD_LOG_INIT(RibManager);
 
-static const std::string MGMT_MODULE_NAME = "rib";
-static const Name LOCALHOST_TOP_PREFIX = "/localhost/nfd";
-static const time::seconds ACTIVE_FACE_FETCH_INTERVAL = 5_min;
-
-const Name RibManager::LOCALHOP_TOP_PREFIX = "/localhop/nfd";
+const std::string MGMT_MODULE_NAME = "rib";
+const Name LOCALHOST_TOP_PREFIX = "/localhost/nfd";
+constexpr time::seconds ACTIVE_FACE_FETCH_INTERVAL = 5_min;
 
 RibManager::RibManager(rib::Rib& rib, ndn::Face& face, ndn::KeyChain& keyChain,
                        ndn::nfd::Controller& nfdController, Dispatcher& dispatcher)
@@ -57,16 +57,16 @@ RibManager::RibManager(rib::Rib& rib, ndn::Face& face, ndn::KeyChain& keyChain,
   , m_dispatcher(dispatcher)
   , m_faceMonitor(face)
   , m_localhostValidator(face)
-  , m_localhopValidator(make_unique<ndn::security::v2::CertificateFetcherDirectFetch>(face))
-  , m_paValidator(make_unique<ndn::security::v2::CertificateFetcherDirectFetch>(face))
+  , m_localhopValidator(make_unique<ndn::security::CertificateFetcherDirectFetch>(face))
+  , m_paValidator(make_unique<ndn::security::CertificateFetcherDirectFetch>(face))
   , m_isLocalhopEnabled(false)
 {
   registerCommandHandler<ndn::nfd::RibRegisterCommand>("register",
-    bind(&RibManager::registerEntry, this, _2, _3, _4, _5));
+    [this] (auto&&, auto&&, auto&&... args) { registerEntry(std::forward<decltype(args)>(args)...); });
   registerCommandHandler<ndn::nfd::RibUnregisterCommand>("unregister",
-    bind(&RibManager::unregisterEntry, this, _2, _3, _4, _5));
-
-  registerStatusDatasetHandler("list", bind(&RibManager::listEntries, this, _1, _2, _3));
+    [this] (auto&&, auto&&, auto&&... args) { unregisterEntry(std::forward<decltype(args)>(args)...); });
+  registerStatusDatasetHandler("list",
+    [this] (auto&&, auto&&, auto&&... args) { listEntries(std::forward<decltype(args)>(args)...); });
 }
 
 void
@@ -104,7 +104,7 @@ RibManager::registerWithNfd()
   }
 
   NFD_LOG_INFO("Start monitoring face create/destroy events");
-  m_faceMonitor.onNotification.connect(bind(&RibManager::onNotification, this, _1));
+  m_faceMonitor.onNotification.connect([this] (const auto& notif) { onNotification(notif); });
   m_faceMonitor.start();
 
   scheduleActiveFaceFetch(ACTIVE_FACE_FETCH_INTERVAL);
@@ -119,13 +119,13 @@ RibManager::enableLocalFields()
       NFD_LOG_DEBUG("Local fields enabled");
     },
     [] (const ControlResponse& res) {
-      NDN_THROW(Error("Couldn't enable local fields (" + to_string(res.getCode()) +
+      NDN_THROW(Error("Couldn't enable local fields (" + std::to_string(res.getCode()) +
                       " " + res.getText() + ")"));
     });
 }
 
 void
-RibManager::beginAddRoute(const Name& name, Route route, optional<time::nanoseconds> expires,
+RibManager::beginAddRoute(const Name& name, Route route, std::optional<time::nanoseconds> expires,
                           const std::function<void(RibUpdateResult)>& done)
 {
   if (expires) {
@@ -209,7 +209,7 @@ RibManager::registerTopPrefix(const Name& topPrefix)
     },
     [=] (const ControlResponse& res) {
       NDN_THROW(Error("Cannot add FIB entry " + topPrefix.toUri() + " (" +
-                      to_string(res.getCode()) + " " + res.getText() + ")"));
+                      std::to_string(res.getCode()) + " " + res.getText() + ")"));
     });
 
   // add top prefix to the dispatcher without prefix registration
@@ -217,12 +217,11 @@ RibManager::registerTopPrefix(const Name& topPrefix)
 }
 
 void
-RibManager::registerEntry(const Name& topPrefix, const Interest& interest,
-                          ControlParameters parameters,
+RibManager::registerEntry(const Interest& interest, ControlParameters parameters,
                           const ndn::mgmt::CommandContinuation& done)
 {
   if (parameters.getName().size() > Fib::getMaxDepth()) {
-    done(ControlResponse(414, "Route prefix cannot exceed " + to_string(Fib::getMaxDepth()) +
+    done(ControlResponse(414, "Route prefix cannot exceed " + std::to_string(Fib::getMaxDepth()) +
                               " components"));
     return;
   }
@@ -238,7 +237,7 @@ RibManager::registerEntry(const Name& topPrefix, const Interest& interest,
   route.cost = parameters.getCost();
   route.flags = parameters.getFlags();
 
-  optional<time::nanoseconds> expires;
+  std::optional<time::nanoseconds> expires;
   if (parameters.hasExpirationPeriod() &&
       parameters.getExpirationPeriod() != time::milliseconds::max()) {
     expires = time::duration_cast<time::nanoseconds>(parameters.getExpirationPeriod());
@@ -248,8 +247,7 @@ RibManager::registerEntry(const Name& topPrefix, const Interest& interest,
 }
 
 void
-RibManager::unregisterEntry(const Name& topPrefix, const Interest& interest,
-                            ControlParameters parameters,
+RibManager::unregisterEntry(const Interest& interest, ControlParameters parameters,
                             const ndn::mgmt::CommandContinuation& done)
 {
   setFaceForSelfRegistration(interest, parameters);
@@ -261,12 +259,11 @@ RibManager::unregisterEntry(const Name& topPrefix, const Interest& interest,
   route.faceId = parameters.getFaceId();
   route.origin = parameters.getOrigin();
 
-  beginRemoveRoute(parameters.getName(), route, [] (RibUpdateResult) {});
+  beginRemoveRoute(parameters.getName(), route, [] (auto&&...) {});
 }
 
 void
-RibManager::listEntries(const Name& topPrefix, const Interest& interest,
-                        ndn::mgmt::StatusDatasetContext& context)
+RibManager::listEntries(ndn::mgmt::StatusDatasetContext& context)
 {
   auto now = time::steady_clock::now();
   for (const auto& kv : m_rib) {
@@ -304,7 +301,7 @@ RibManager::setFaceForSelfRegistration(const Interest& request, ControlParameter
 }
 
 ndn::mgmt::Authorization
-RibManager::makeAuthorization(const std::string& verb)
+RibManager::makeAuthorization(const std::string&)
 {
   return [this] (const Name& prefix, const Interest& interest,
                  const ndn::mgmt::ControlParameters* params,
@@ -314,11 +311,10 @@ RibManager::makeAuthorization(const std::string& verb)
     BOOST_ASSERT(typeid(*params) == typeid(ndn::nfd::ControlParameters));
     BOOST_ASSERT(prefix == LOCALHOST_TOP_PREFIX || prefix == LOCALHOP_TOP_PREFIX);
 
-    ndn::ValidatorConfig& validator = prefix == LOCALHOST_TOP_PREFIX ?
-                                      m_localhostValidator : m_localhopValidator;
+    auto& validator = prefix == LOCALHOST_TOP_PREFIX ? m_localhostValidator : m_localhopValidator;
     validator.validate(interest,
-                       bind([&interest, this, accept] { extractRequester(interest, accept); }),
-                       bind([reject] { reject(ndn::mgmt::RejectReply::STATUS403); }));
+                       [&interest, accept] (auto&&...) { accept(extractSigner(interest)); },
+                       [reject] (auto&&...) { reject(ndn::mgmt::RejectReply::STATUS403); });
   };
 }
 
@@ -326,19 +322,18 @@ std::ostream&
 operator<<(std::ostream& os, RibManager::SlAnnounceResult res)
 {
   switch (res) {
-    case RibManager::SlAnnounceResult::OK:
-      return os << "OK";
-    case RibManager::SlAnnounceResult::ERROR:
-      return os << "ERROR";
-    case RibManager::SlAnnounceResult::VALIDATION_FAILURE:
-      return os << "VALIDATION_FAILURE";
-    case RibManager::SlAnnounceResult::EXPIRED:
-      return os << "EXPIRED";
-    case RibManager::SlAnnounceResult::NOT_FOUND:
-      return os << "NOT_FOUND";
+  case RibManager::SlAnnounceResult::OK:
+    return os << "OK";
+  case RibManager::SlAnnounceResult::ERROR:
+    return os << "ERROR";
+  case RibManager::SlAnnounceResult::VALIDATION_FAILURE:
+    return os << "VALIDATION_FAILURE";
+  case RibManager::SlAnnounceResult::EXPIRED:
+    return os << "EXPIRED";
+  case RibManager::SlAnnounceResult::NOT_FOUND:
+    return os << "NOT_FOUND";
   }
-  BOOST_ASSERT_MSG(false, "bad SlAnnounceResult");
-  return os;
+  NDN_THROW(std::invalid_argument("Unknown SlAnnounceResult"));
 }
 
 RibManager::SlAnnounceResult
@@ -351,10 +346,8 @@ RibManager::getSlAnnounceResultFromRibUpdateResult(RibUpdateResult r)
     return SlAnnounceResult::ERROR;
   case RibUpdateResult::EXPIRED:
     return SlAnnounceResult::EXPIRED;
-  default:
-    BOOST_ASSERT(false);
-    return SlAnnounceResult::ERROR;
   }
+  NDN_CXX_UNREACHABLE;
 }
 
 void
@@ -367,14 +360,14 @@ RibManager::slAnnounce(const ndn::PrefixAnnouncement& pa, uint64_t faceId,
     [=] (const Data&) {
       Route route(pa, faceId);
       route.expires = std::min(route.annExpires, time::steady_clock::now() + maxLifetime);
-      beginAddRoute(pa.getAnnouncedName(), route, nullopt,
+      beginAddRoute(pa.getAnnouncedName(), route, std::nullopt,
         [=] (RibUpdateResult ribRes) {
           auto res = getSlAnnounceResultFromRibUpdateResult(ribRes);
           NFD_LOG_INFO("slAnnounce " << pa.getAnnouncedName() << " " << faceId << ": " << res);
           cb(res);
         });
     },
-    [=] (const Data&, ndn::security::v2::ValidationError err) {
+    [=] (const Data&, ndn::security::ValidationError err) {
       NFD_LOG_INFO("slAnnounce " << pa.getAnnouncedName() << " " << faceId <<
                    " validation error: " << err);
       cb(SlAnnounceResult::VALIDATION_FAILURE);
@@ -399,7 +392,7 @@ RibManager::slRenew(const Name& name, uint64_t faceId, time::milliseconds maxLif
 
   Route route = *oldRoute;
   route.expires = std::min(route.annExpires, time::steady_clock::now() + maxLifetime);
-  beginAddRoute(routeName, route, nullopt,
+  beginAddRoute(routeName, route, std::nullopt,
     [=] (RibUpdateResult ribRes) {
       auto res = getSlAnnounceResultFromRibUpdateResult(ribRes);
       NFD_LOG_INFO("slRenew " << name << " " << faceId << ": " << res << " " << routeName);
@@ -419,7 +412,7 @@ RibManager::slFindAnn(const Name& name, const SlFindAnnCallback& cb) const
     entry = m_rib.findParent(name);
   }
   if (entry == nullptr) {
-    return cb(nullopt);
+    return cb(std::nullopt);
   }
 
   auto pa = entry->getPrefixAnnouncement();
@@ -433,9 +426,8 @@ RibManager::fetchActiveFaces()
   NFD_LOG_DEBUG("Fetching active faces");
 
   m_nfdController.fetch<ndn::nfd::FaceDataset>(
-    bind(&RibManager::removeInvalidFaces, this, _1),
-    bind(&RibManager::onFetchActiveFacesFailure, this, _1, _2),
-    ndn::nfd::CommandOptions());
+    [this] (auto&&... args) { removeInvalidFaces(std::forward<decltype(args)>(args)...); },
+    [this] (auto&&... args) { onFetchActiveFacesFailure(std::forward<decltype(args)>(args)...); });
 }
 
 void
@@ -456,11 +448,12 @@ RibManager::removeInvalidFaces(const std::vector<ndn::nfd::FaceStatus>& activeFa
 {
   NFD_LOG_DEBUG("Checking for invalid face registrations");
 
-  std::set<uint64_t> activeFaceIds;
+  std::set<uint64_t> activeIds;
   for (const auto& faceStatus : activeFaces) {
-    activeFaceIds.insert(faceStatus.getFaceId());
+    activeIds.insert(faceStatus.getFaceId());
   }
-  getGlobalIoService().post([=] { m_rib.beginRemoveFailedFaces(activeFaceIds); });
+  boost::asio::defer(getGlobalIoService(),
+                     [this, active = std::move(activeIds)] { m_rib.beginRemoveFailedFaces(active); });
 
   // Reschedule the check for future clean up
   scheduleActiveFaceFetch(ACTIVE_FACE_FETCH_INTERVAL);
@@ -473,7 +466,8 @@ RibManager::onNotification(const ndn::nfd::FaceEventNotification& notification)
 
   if (notification.getKind() == ndn::nfd::FACE_EVENT_DESTROYED) {
     NFD_LOG_DEBUG("Received notification for destroyed FaceId " << notification.getFaceId());
-    getGlobalIoService().post([this, id = notification.getFaceId()] { m_rib.beginRemoveFace(id); });
+    boost::asio::defer(getGlobalIoService(),
+                       [this, id = notification.getFaceId()] { m_rib.beginRemoveFace(id); });
   }
 }
 

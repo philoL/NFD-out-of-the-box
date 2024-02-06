@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,23 +28,15 @@
 
 #include "datagram-transport.hpp"
 
+#include <boost/asio/ip/udp.hpp>
 #include <ndn-cxx/net/network-interface.hpp>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_MEMBER_DECL_SPECIALIZED((DatagramTransport<boost::asio::ip::udp, Multicast>));
 
-// Explicit specialization of makeEndpointId for the UDP multicast case.
-// Note that this "shall be declared before the first use of the specialization
-// that would cause an implicit instantiation to take place, in every translation
-// unit in which such a use occurs".
-template<>
-EndpointId
-DatagramTransport<boost::asio::ip::udp, Multicast>::makeEndpointId(const protocol::endpoint& ep);
-
 /**
- * \brief A Transport that communicates on a UDP multicast group
+ * \brief A Transport that communicates on a UDP multicast group.
  */
 class MulticastUdpTransport final : public DatagramTransport<boost::asio::ip::udp, Multicast>
 {
@@ -56,45 +48,50 @@ public:
   };
 
   /**
-   * \brief Creates a UDP-based transport for multicast communication
+   * \brief Creates a UDP-based transport for multicast communication.
    * \param multicastGroup multicast group
    * \param recvSocket socket used to receive multicast packets
    * \param sendSocket socket used to send to the multicast group
    * \param linkType either `ndn::nfd::LINK_TYPE_MULTI_ACCESS` or `ndn::nfd::LINK_TYPE_AD_HOC`
    */
-  MulticastUdpTransport(const protocol::endpoint& multicastGroup,
-                        protocol::socket&& recvSocket,
-                        protocol::socket&& sendSocket,
+  MulticastUdpTransport(const boost::asio::ip::udp::endpoint& multicastGroup,
+                        boost::asio::ip::udp::socket&& recvSocket,
+                        boost::asio::ip::udp::socket&& sendSocket,
                         ndn::nfd::LinkType linkType);
 
   ssize_t
   getSendQueueLength() final;
 
+  /**
+   * \brief Opens and configures the receive-side socket.
+   */
   static void
-  openRxSocket(protocol::socket& sock,
-               const protocol::endpoint& multicastGroup,
-               const boost::asio::ip::address& localAddress,
-               const shared_ptr<const ndn::net::NetworkInterface>& netif = nullptr);
+  openRxSocket(boost::asio::ip::udp::socket& sock,
+               const boost::asio::ip::udp::endpoint& multicastGroup,
+               const boost::asio::ip::address& localAddress = {},
+               const ndn::net::NetworkInterface* netif = nullptr);
 
+  /**
+   * \brief Opens and configures the transmit-side socket.
+   */
   static void
-  openTxSocket(protocol::socket& sock,
-               const protocol::endpoint& localEndpoint,
-               const shared_ptr<const ndn::net::NetworkInterface>& netif = nullptr,
+  openTxSocket(boost::asio::ip::udp::socket& sock,
+               const boost::asio::ip::udp::endpoint& localEndpoint,
+               const ndn::net::NetworkInterface* netif = nullptr,
                bool enableLoopback = false);
 
 private:
   void
-  doSend(const Block& packet, const EndpointId& endpoint) final;
+  doSend(const Block& packet) final;
 
   void
   doClose() final;
 
 private:
-  protocol::endpoint m_multicastGroup;
-  protocol::socket m_sendSocket;
+  boost::asio::ip::udp::endpoint m_multicastGroup;
+  boost::asio::ip::udp::socket m_sendSocket;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_MULTICAST_UDP_TRANSPORT_HPP

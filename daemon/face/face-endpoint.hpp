@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,28 +30,31 @@
 
 namespace nfd {
 
-/** \brief Represents a face-endpoint pair in the forwarder.
- *  \sa face::Face, face::EndpointId
+/**
+ * \brief Represents a face-endpoint pair in the forwarder.
+ * \sa face::Face, face::EndpointId
  */
 class FaceEndpoint
 {
 public:
-  FaceEndpoint(const Face& face, EndpointId endpoint)
-    : face(const_cast<Face&>(face))
-    , endpoint(endpoint)
+  explicit
+  FaceEndpoint(Face& face, const EndpointId& endpoint = {});
+
+private:
+  void
+  print(std::ostream& os) const;
+
+  friend std::ostream&
+  operator<<(std::ostream& os, const FaceEndpoint& fe)
   {
+    fe.print(os);
+    return os;
   }
 
 public:
   Face& face;
   const EndpointId endpoint;
 };
-
-inline std::ostream&
-operator<<(std::ostream& os, const FaceEndpoint& fe)
-{
-  return os << '(' << fe.face.getId() << ',' << fe.endpoint << ')';
-}
 
 } // namespace nfd
 

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2018,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,28 +24,30 @@
  */
 
 #include "route.hpp"
+
 #include <ndn-cxx/util/string-helper.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
-const uint64_t PA_ROUTE_COST = 2048; ///< cost of route created by prefix announcement
+constexpr uint64_t PA_ROUTE_COST = 2048; // cost of route created by prefix announcement
 
-static time::steady_clock::TimePoint
+Route::Route() = default;
+
+static time::steady_clock::time_point
 computeExpiration(const ndn::PrefixAnnouncement& ann)
 {
-  time::steady_clock::Duration validityEnd = time::steady_clock::Duration::max();
+  auto validityEnd = time::steady_clock::duration::max();
   if (ann.getValidityPeriod()) {
     auto now = time::system_clock::now();
     if (!ann.getValidityPeriod()->isValid(now)) {
-      validityEnd = time::steady_clock::Duration::zero();
+      validityEnd = time::steady_clock::duration::zero();
     }
     else {
       validityEnd = ann.getValidityPeriod()->getPeriod().second - now;
     }
   }
   return time::steady_clock::now() +
-    std::min(validityEnd, time::duration_cast<time::steady_clock::Duration>(ann.getExpiration()));
+    std::min(validityEnd, time::duration_cast<time::steady_clock::duration>(ann.getExpiration()));
 }
 
 Route::Route(const ndn::PrefixAnnouncement& ann, uint64_t faceId)
@@ -59,17 +61,6 @@ Route::Route(const ndn::PrefixAnnouncement& ann, uint64_t faceId)
 {
 }
 
-bool
-operator==(const Route& lhs, const Route& rhs)
-{
-  return lhs.faceId == rhs.faceId &&
-         lhs.origin == rhs.origin &&
-         lhs.flags == rhs.flags &&
-         lhs.cost == rhs.cost &&
-         lhs.expires == rhs.expires &&
-         lhs.announcement == rhs.announcement;
-}
-
 std::ostream&
 operator<<(std::ostream& os, const Route& route)
 {
@@ -78,19 +69,19 @@ operator<<(std::ostream& os, const Route& route)
      << ", origin: " << route.origin
      << ", cost: " << route.cost
      << ", flags: " << ndn::AsHex{route.flags};
+
   if (route.expires) {
     os << ", expires in: " << time::duration_cast<time::milliseconds>(*route.expires - time::steady_clock::now());
   }
   else {
     os << ", never expires";
   }
+
   if (route.announcement) {
     os << ", announcement: (" << *route.announcement << ')';
   }
-  os << ')';
 
-  return os;
+  return os << ')';
 }
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib

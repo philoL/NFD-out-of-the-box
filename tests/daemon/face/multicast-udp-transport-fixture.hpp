@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,66 +32,58 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/limited-io.hpp"
 #include "tests/daemon/face/dummy-link-service.hpp"
+#include "tests/daemon/face/transport-test-common.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include <ndn-cxx/util/random.hpp>
 
-using namespace nfd::tests;
+namespace nfd::tests {
+
 namespace ip = boost::asio::ip;
 using ip::udp;
+using face::MulticastUdpTransport;
 
 class MulticastUdpTransportFixture : public GlobalIoFixture
 {
 protected:
-  MulticastUdpTransportFixture()
-    : transport(nullptr)
-    , txPort(7001)
-    , receivedPackets(nullptr)
-    , remoteSockRx(g_io)
-    , remoteSockTx(g_io)
-  {
-  }
-
   void
-  initialize(ip::address address)
+  initialize(const shared_ptr<const ndn::net::NetworkInterface>& netif, const ip::address& address)
   {
     ip::address mcastAddr;
     if (address.is_v4()) {
       // the administratively scoped group 224.0.0.254 is reserved for experimentation (RFC 4727)
-      mcastAddr = ip::address_v4(0xE00000FE);
+      mcastAddr = ip::make_address_v4("224.0.0.254");
     }
     else {
       // the group FF0X::114 is reserved for experimentation at all scope levels (RFC 4727)
-      auto v6Addr = ip::address_v6::from_string("FF01::114");
-      v6Addr.scope_id(address.to_v6().scope_id());
+      auto v6Addr = ip::make_address_v6("FF01::114");
+      v6Addr.scope_id(netif->getIndex());
       mcastAddr = v6Addr;
     }
-    mcastEp = udp::endpoint(mcastAddr, 7373);
-    remoteMcastEp = udp::endpoint(mcastAddr, 8383);
+    mcastEp = udp::endpoint(mcastAddr, m_randomPort(ndn::random::getRandomNumberEngine()));
+    m_remoteMcastEp = udp::endpoint(mcastAddr, m_randomPort(ndn::random::getRandomNumberEngine()));
 
-    MulticastUdpTransport::openRxSocket(remoteSockRx, mcastEp, address);
-    MulticastUdpTransport::openTxSocket(remoteSockTx, udp::endpoint(address, 0), nullptr, true);
+    MulticastUdpTransport::openRxSocket(m_remoteSockRx, mcastEp, address);
+    MulticastUdpTransport::openTxSocket(m_remoteSockTx, udp::endpoint(address, 0), &*netif, true);
 
     udp::socket sockRx(g_io);
     udp::socket sockTx(g_io);
-    MulticastUdpTransport::openRxSocket(sockRx, remoteMcastEp, address);
-    MulticastUdpTransport::openTxSocket(sockTx, udp::endpoint(address, txPort), nullptr, true);
+    MulticastUdpTransport::openRxSocket(sockRx, m_remoteMcastEp, address);
+    MulticastUdpTransport::openTxSocket(sockTx, udp::endpoint(address, txPort), &*netif, true);
 
-    face = make_unique<Face>(make_unique<DummyLinkService>(),
-                             make_unique<MulticastUdpTransport>(mcastEp, std::move(sockRx), std::move(sockTx),
-                                                                ndn::nfd::LINK_TYPE_MULTI_ACCESS));
-    transport = static_cast<MulticastUdpTransport*>(face->getTransport());
-    receivedPackets = &static_cast<DummyLinkService*>(face->getLinkService())->receivedPackets;
+    m_face = make_unique<Face>(make_unique<DummyLinkService>(),
+                               make_unique<MulticastUdpTransport>(mcastEp, std::move(sockRx), std::move(sockTx),
+                                                                  ndn::nfd::LINK_TYPE_MULTI_ACCESS));
+    transport = static_cast<MulticastUdpTransport*>(m_face->getTransport());
+    receivedPackets = &static_cast<DummyLinkService*>(m_face->getLinkService())->receivedPackets;
 
-    BOOST_REQUIRE_EQUAL(transport->getState(), TransportState::UP);
+    BOOST_REQUIRE_EQUAL(transport->getState(), face::TransportState::UP);
   }
 
   void
   remoteRead(std::vector<uint8_t>& buf, bool needToCheck = true)
   {
-    remoteSockRx.async_receive(boost::asio::buffer(buf),
-      [this, needToCheck] (const boost::system::error_code& error, size_t) {
+    m_remoteSockRx.async_receive(boost::asio::buffer(buf),
+      [this, needToCheck] (const auto& error, size_t) {
         if (needToCheck) {
           BOOST_REQUIRE_EQUAL(error, boost::system::errc::success);
         }
@@ -103,14 +95,14 @@ protected:
   void
   remoteWrite(const std::vector<uint8_t>& buf, bool needToCheck = true)
   {
-    sendToGroup(remoteSockTx, buf, needToCheck);
+    sendToGroup(m_remoteSockTx, buf, needToCheck);
     limitedIo.defer(1_s);
   }
 
   void
   sendToGroup(udp::socket& sock, const std::vector<uint8_t>& buf, bool needToCheck = true) const
   {
-    sock.async_send_to(boost::asio::buffer(buf), remoteMcastEp,
+    sock.async_send_to(boost::asio::buffer(buf), m_remoteMcastEp,
       [needToCheck] (const auto& error, size_t) {
         if (needToCheck) {
           BOOST_REQUIRE_EQUAL(error, boost::system::errc::success);
@@ -120,20 +112,19 @@ protected:
 
 protected:
   LimitedIo limitedIo;
-  MulticastUdpTransport* transport;
+  MulticastUdpTransport* transport = nullptr;
   udp::endpoint mcastEp;
-  uint16_t txPort;
-  std::vector<RxPacket>* receivedPackets;
+  uint16_t txPort = 7001;
+  std::vector<RxPacket>* receivedPackets = nullptr;
 
 private:
-  unique_ptr<Face> face;
-  udp::endpoint remoteMcastEp;
-  udp::socket remoteSockRx;
-  udp::socket remoteSockTx;
+  std::uniform_int_distribution<uint16_t> m_randomPort{10000};
+  udp::endpoint m_remoteMcastEp;
+  udp::socket m_remoteSockRx{g_io};
+  udp::socket m_remoteSockTx{g_io};
+  unique_ptr<Face> m_face;
 };
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FACE_MULTICAST_UDP_TRANSPORT_FIXTURE_HPP

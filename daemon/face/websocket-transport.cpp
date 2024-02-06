@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,8 +26,7 @@
 #include "websocket-transport.hpp"
 #include "common/global.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(WebSocketTransport);
 
@@ -37,12 +36,13 @@ isLoopback(const boost::asio::ip::address& addr)
   if (addr.is_loopback()) {
     return true;
   }
+
   // Workaround for loopback IPv4-mapped IPv6 addresses
   // see https://svn.boost.org/trac/boost/ticket/9084
-  else if (addr.is_v6()) {
+  if (addr.is_v6()) {
     auto addr6 = addr.to_v6();
     if (addr6.is_v4_mapped()) {
-      return addr6.to_v4().is_loopback();
+      return boost::asio::ip::make_address_v4(boost::asio::ip::v4_mapped, addr6).is_loopback();
     }
   }
 
@@ -78,12 +78,12 @@ WebSocketTransport::WebSocketTransport(websocketpp::connection_hdl hdl,
 }
 
 void
-WebSocketTransport::doSend(const Block& packet, const EndpointId&)
+WebSocketTransport::doSend(const Block& packet)
 {
   NFD_LOG_FACE_TRACE(__func__);
 
   websocketpp::lib::error_code error;
-  m_server.send(m_handle, packet.wire(), packet.size(),
+  m_server.send(m_handle, packet.data(), packet.size(),
                 websocketpp::frame::opcode::binary, error);
   if (error)
     return processErrorCode(error);
@@ -98,7 +98,7 @@ WebSocketTransport::receiveMessage(const std::string& msg)
 
   bool isOk = false;
   Block element;
-  std::tie(isOk, element) = Block::fromBuffer(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+  std::tie(isOk, element) = Block::fromBuffer({reinterpret_cast<const uint8_t*>(msg.data()), msg.size()});
   if (!isOk) {
     NFD_LOG_FACE_WARN("Failed to parse message payload");
     return;
@@ -174,5 +174,4 @@ WebSocketTransport::doClose()
   this->setState(TransportState::CLOSED);
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
