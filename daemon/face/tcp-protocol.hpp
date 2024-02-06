@@ -28,12 +28,10 @@
 
 #include "core/common.hpp"
 
-namespace nfd {
-namespace tcp {
+namespace nfd::tcp {
 
 typedef boost::asio::ip::tcp::endpoint Endpoint;
 
-} // namespace tcp
-} // namespace nfd
+} // namespace nfd::tcp
 
 #endif // NFD_DAEMON_FACE_TCP_PROTOCOL_HPP
