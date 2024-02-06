@@ -28,6 +28,8 @@
 
 #include "core/common.hpp"
 
+#include <boost/asio/ip/tcp.hpp>
+
 namespace nfd::tcp {
 
 typedef boost::asio::ip::tcp::endpoint Endpoint;
